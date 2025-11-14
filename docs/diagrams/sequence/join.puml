@@ -1,0 +1,31 @@
+@startuml
+
+actor clientA as ユーザーA
+participant MagicOnion as ルーム
+actor clientB as ユーザーB
+actor clientC as ユーザーC
+
+autonumber
+
+note over ユーザーA:ユーザーAがルームに入室
+ユーザーA->ルーム:ユーザー情報を送信
+
+note over ルーム:ルームに参加しているユーザー情報を返す
+ルーム-->ユーザーA:ユーザー情報を返す
+
+note over ユーザーB:ユーザーBがルームに入室
+ユーザーB->ルーム:ユーザー情報を送信
+
+note over ルーム:ユーザー情報を返す
+ルーム-->ユーザーB:ユーザー情報を返す
+ルーム-->ユーザーA:ユーザー情報を返す
+
+note over ユーザーC:ユーザーCがルームに入室
+ユーザーC->ルーム:ユーザー情報を送信
+
+note over ルーム:ルームに参加しているユーザー情報を返す
+ルーム-->ユーザーC:ユーザー情報を返す
+ルーム-->ユーザーB:ユーザー情報を返す
+ルーム-->ユーザーA:ユーザー情報を返す
+
+@enduml

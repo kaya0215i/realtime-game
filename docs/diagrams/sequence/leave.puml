@@ -1,0 +1,18 @@
+@startuml
+
+actor clientA as ユーザーA
+participant MagicOnion as ルーム
+actor clientB as ユーザーB
+actor clientC as ユーザーC
+
+autonumber
+
+note over ユーザーB:ユーザーBがルームを退出
+ユーザーB->ルーム:退出リクエストを送信
+
+note over ルーム:退出通知
+ルーム-->ユーザーA:退出通知を返す
+ルーム-->ユーザーC:退出通知を返す
+
+
+@enduml
