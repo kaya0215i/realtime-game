@@ -14,5 +14,8 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
 
         // ユーザーの入室通知
         public void OnJoin(JoinedUser user);
+
+        // ユーザーの退出通知
+        public void OnLeave(Guid connectionId);
     }
 }

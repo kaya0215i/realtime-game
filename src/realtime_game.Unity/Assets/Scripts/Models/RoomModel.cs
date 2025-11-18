@@ -16,6 +16,9 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     // ユーザー接続通知
     public Action<JoinedUser> OnJoinedUser { get; set; }
 
+    // ユーザー退出通知
+    public Action<Guid> OnLeavedUser { get; set; }
+
     // MagicOnion接続処理
     public async UniTask ConnectAsync() {
         channel = GrpcChannelx.ForAddress(ServerURL);
@@ -50,6 +53,21 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     public void OnJoin(JoinedUser user) {
         if (OnJoinedUser != null) {
             OnJoinedUser(user);
+        }
+    }
+
+    // 退出
+    public async UniTask LeaveAsync() {
+        await roomHub.LeaveAsync();
+        if(OnLeavedUser != null) {
+            OnLeavedUser(this.ConnectionId);
+        }
+    }
+
+    // 退出通知
+    public void OnLeave(Guid connectionId) {
+        if (connectionId != null) {
+            OnLeavedUser(connectionId);
         }
     }
 }

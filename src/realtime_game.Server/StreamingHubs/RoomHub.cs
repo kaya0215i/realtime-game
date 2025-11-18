@@ -45,6 +45,25 @@ namespace realtime_game.Server.StreamingHubs {
                 f => f.Value.JoinedUser).ToArray();
         }
 
+        // 退出処理
+        public Task LeaveAsync() {
+            // 退出したことを全メンバーに通知
+            this.roomContext.Group.All.OnLeave(this.ConnectionId);
+
+            // ルーム内のメンバーから自分を削除
+            this.roomContext.Group.Remove(this.ConnectionId);
+
+            // ルームデータから退出したユーザーを削除
+            this.roomContext.RoomUserDataList.Remove(this.ConnectionId);
+
+            // ルーム内にユーザーが一人もいなかったらルームを削除
+            if(this.roomContext.RoomUserDataList.Count == 0) {
+                roomContextRepos.RemoveContext(roomContext.Name);
+            }
+
+            return Task.CompletedTask;
+        }
+
         // 接続時の処理
         protected override ValueTask OnConnected() {
             roomContextRepos = roomContextRepository;

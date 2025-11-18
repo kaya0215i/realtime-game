@@ -1,7 +1,6 @@
 using UnityEngine;
-using static UnityEditor.Searcher.SearcherWindow.Alignment;
 
-public class PlayerManager : MonoBehaviour {
+public class PlayerDirector : MonoBehaviour {
     [SerializeField] private float moveSpeed;
 
     private void FixedUpdate() {
