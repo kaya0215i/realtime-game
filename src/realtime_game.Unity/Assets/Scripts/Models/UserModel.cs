@@ -5,10 +5,25 @@ using MagicOnion;
 using MagicOnion.Client;
 using realtime_game.Shared.Interfaces.Services;
 using realtime_game.Shared.Models.Entities;
+using Unity.VisualScripting;
 using UnityEngine;
 
 public class UserModel : BaseModel {
-    private int userId; // “o˜^ƒ†[ƒU[ID
+    public int UserId { private set; get; } // “o˜^ƒ†[ƒU[ID
+
+    // ƒVƒ“ƒOƒ‹ƒgƒ“‚É‚·‚é
+    private static UserModel instance;
+    public static UserModel Instance {
+        get {
+            if(instance == null) {
+                GameObject obj = new GameObject("UserModel");
+                instance = obj.AddComponent<UserModel>();
+                DontDestroyOnLoad(obj);
+            }
+            return instance;
+        }
+    }
+
     // ƒ†[ƒU[‚ğ“o˜^‚·‚éAPI
     public async UniTask<bool> RegistUserAsync(string name) {
         var channel = GrpcChannelx.ForAddress(ServerURL);
@@ -16,7 +31,7 @@ public class UserModel : BaseModel {
 
         try {
             // “o˜^¬Œ÷
-            userId = await client.RegistUserAsync(name);
+            UserId = await client.RegistUserAsync(name);
             return true;
         } catch (RpcException e) {
             // “o˜^¸”s

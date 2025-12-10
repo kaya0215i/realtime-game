@@ -5,6 +5,8 @@ TagManager:
   serializedVersion: 3
   tags:
   - Field
+  - ItemObject
+  - Bullet
   layers:
   - Default
   - TransparentFX
@@ -14,8 +16,8 @@ TagManager:
   - UI
   - Field
   - 
-  - 
-  - 
+  - Character Preview
+  - Bullet
   - 
   - 
   - 

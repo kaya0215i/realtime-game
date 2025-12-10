@@ -16,19 +16,34 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         // ユーザーの入室通知
         public void OnJoin(JoinedUser user);
 
-        // ユーザーの退出通知
-        public void OnLeave(Guid connectionId);
+        // ユーザーの退室通知
+        public void OnLeave(Guid connectionId, int joinOrder);
+
+        // ロビールームの入室通知
+        public void OnJoinLoby(JoinedUser user);
+
+        // ロビールームの退室通知
+        public void OnLeaveLoby(Guid connectionId, int joinOrder);
+
+        // チームの参加通知
+        public void OnJoinTeam(JoinedUser user);
+
+        // チームの退出通知
+        public void OnLeaveTeam(Guid connectionId);
 
         // ユーザーのTransform通知
-        public void OnUpdateTransform(Guid connectionId, Vector3 pos, Quaternion rotate);
+        public void OnUpdateUserTransform(Guid connectionId, Vector3 pos, Quaternion rotate, Quaternion cameraRotate);
 
         // オブジェクトの作成通知
-        public void OnCreateObject(Guid connectionId, Guid objectId, Vector3 pos, Quaternion rotate);
+        public void OnCreateObject(Guid connectionId, Guid objectId, int objectDataId, Vector3 pos, Quaternion rotate, int updateTypeNum);
+
+        // オブジェクトのInteracterをfalseにする通知
+        public void OnFalseObjectInteracting(Guid objectId);
 
         // オブジェクトの破棄通知
-        public void OnDestroyObject(Guid connectionId, Guid objectId);
+        public void OnDestroyObject(Guid objectId);
 
         // オブジェクトのTransform通知
-        public void OnUpdateObjectTransform(Guid connectionId, Guid objectId, Vector3 pos, Quaternion rotate);
+        public void OnUpdateObjectTransform(Guid objectId, Vector3 pos, Quaternion rotate);
     }
 }

@@ -13,6 +13,10 @@ namespace realtime_game.Server.StreamingHubs {
         public IMulticastSyncGroup<Guid, IRoomHubReceiver> Group { get; } // グループ
         public Dictionary<Guid, RoomUserData> RoomUserDataList { get; } =
             new Dictionary<Guid, RoomUserData>(); // ユーザーデータ一覧
+
+        public Dictionary<Guid, Dictionary<Guid, RoomUserData>> TeamUserDataList { get; } =
+            new Dictionary<Guid, Dictionary<Guid, RoomUserData>>(); // チームとユーザーデータ一覧
+
         public Dictionary<Guid, RoomObjectData> RoomObjectDataList { get; } =
             new Dictionary<Guid, RoomObjectData>(); // オブジェクトデータ一覧
 

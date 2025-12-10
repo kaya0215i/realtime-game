@@ -10,7 +10,7 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
     /// <summary>
     /// クライアントから呼び出す処理を実装するクラス用インターフェース
     /// </summary>
-    public interface IRoomHub :IStreamingHub<IRoomHub, IRoomHubReceiver> {
+    public interface IRoomHub : IStreamingHub<IRoomHub, IRoomHubReceiver> {
         // [サーバーに実装]
         // [クライアントから呼び出す]
 
@@ -20,19 +20,40 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         // ユーザー退室
         Task LeaveAsync();
 
+        // ロビールームの入室
+        Task<JoinedUser[]> JoinLobyAsync(int userId);
+
+        // ロビールームの退室
+        Task LeaveLobyAsync();
+
+        // チームを作成
+        Task<Guid> CreateTeamAndJoinAsync();
+
+        // チームに参加
+        Task<JoinedUser[]> JoinTeamAsync(Guid targetTeamId);
+
+        // チームを抜ける
+        Task LeaveTeamAsync();
+
         // 接続ID取得
         Task<Guid> GetConnectionId();
 
-        // Transform更新
-        Task UpdateTransformAsync(Vector3 pos, Quaternion rotate);
+        // ユーザーTransform更新
+        Task UpdateUserTransformAsync(Vector3 pos, Quaternion rotate, Quaternion cameraRotate);
 
         // オブジェクトの作成
-        Task<Guid> CreateObjectAsync(Vector3 pos, Quaternion rotate);
+        Task<Guid> CreateObjectAsync(int objectDataId, Vector3 pos, Quaternion rotate, int updateTypeNum);
 
         // オブジェクトの破棄
         Task DestroyObjectAsync(Guid objectId);
 
         // オブジェクトのTransform更新
         Task UpdateObjectTransformAsync(Guid objectId, Vector3 pos, Quaternion rotate);
+
+        // オブジェクトがインタラクト可能であればする
+        Task<bool> InteractObjectAsync(Guid objectId);
+
+        // オブジェクトを手放す
+        Task DisInteractObjectAsync(Guid objectId);
     }
 }

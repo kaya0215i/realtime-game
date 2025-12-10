@@ -7,91 +7,92 @@ using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.UI;
+using static NetworkObject;
 
 public class GameManager : MonoBehaviour {
+    // プレイヤーキャラのプレハブ
     [SerializeField] private GameObject characterPrefab;
+    // プレイヤーキャラのリスト
     private Dictionary<Guid, GameObject> characterList = new Dictionary<Guid, GameObject>();
-    [SerializeField] private GameObject objectPrefab;
+    // オブジェクトのプレハブ
+    [SerializeField] public ObjectDataSO objectDataSO;
+    // オブジェクトのリスト
     private Dictionary<Guid, GameObject> objectList = new Dictionary<Guid, GameObject>();
-    private RoomModel roomModel;
-    private UserModel userModel;
-    private PlayerManager playerManager;
 
-    private int myUserId = 1; // 自分のユーザーID
-    private Guid myConnectionId; // 自分の接続ID
-    private User myself; // 自分のユーザー情報を保存
-    [HideInInspector] public bool isJoined;
+    // 自分のプレイヤーキャラ
+    private GameObject myCharacter;
+
+    private PlayerManager playerManager;
+    private PlayerController playerController;
+
+    [NonSerialized] public JoinedUser mySelf; // 自分のユーザー情報を保存
+    [NonSerialized] public bool isJoined;
 
     [SerializeField] private Text roomNameInputFieldText;
     [SerializeField] private Text userIdInputFieldText;
 
-    private float updateTransformTime;
-
     private bool isShowMouseCursor;
 
     private void Awake() {
-        updateTransformTime = 0;
-
         HideMouseCursor();
         isShowMouseCursor = false;
+        isJoined = false;
+
+        mySelf = new JoinedUser();
     }
 
     private async void Start() {
-        roomModel = GetComponent<RoomModel>();
-        userModel = GetComponent<UserModel>();
-
         // ユーザーが入退室したときにメソッドを実行するよう、モデルに登録しておく
-        roomModel.OnJoinedUser += this.OnJoinedUser;
-        roomModel.OnLeavedUser += this.OnLeavedUser;
+        RoomModel.Instance.OnJoinedUser += this.OnJoinedUser;
+        RoomModel.Instance.OnLeavedUser += this.OnLeavedUser;
 
         // ユーザーのTransfromを反映
-        roomModel.OnUpdatedTransformUser += this.OnUpdatedTransformUser;
+        RoomModel.Instance.OnUpdatedTransformUser += this.OnUpdatedTransformUser;
 
         // オブジェクトが作成されたら
-        roomModel.OnCreatedObject += this.OnCreatedObject;
+        RoomModel.Instance.OnCreatedObject += this.OnCreatedObject;
 
         // オブジェクトが破棄されたら
-        roomModel.OnDestroyedObject += this.OnDestroyedObject;
+        RoomModel.Instance.OnDestroyedObject += this.OnDestroyedObject;
 
         // オブジェクトのTransformを反映
-        roomModel.OnUpdatedObjectTransform += this.OnUpdateObjectTransform;
+        RoomModel.Instance.OnUpdatedObjectTransform += this.OnUpdatedObjectTransform;
 
-        GameObject characterObject = Instantiate(characterPrefab); // プレイヤーインスタンス生成
-        characterObject.transform.position = Vector3.one;
-        playerManager = characterObject.GetComponent<PlayerManager>();
-        playerManager.cinemachineCamera.Priority = 10;
+        // オブジェクトのIsInteractingをfalseに
+        RoomModel.Instance.OnFalsedObjectInteracting += this.OnFalsedObjectInteracting;
 
-        isJoined = false;
+        myCharacter = Instantiate(characterPrefab); // プレイヤーインスタンス生成
+        myCharacter.transform.position = Vector3.one;
+        playerManager = myCharacter.GetComponent<PlayerManager>();
+        playerController = myCharacter.GetComponent<PlayerController>();
+        playerController.cinemachineCamera.Priority = 10;
 
         // 接続
-        await roomModel.ConnectAsync();
+        await RoomModel.Instance.ConnectAsync();
     }
 
+    /// <summary>
+    /// カーソル非表示
+    /// </summary>
     public void HideMouseCursor() {
-        // カーソル非表示
-        Cursor.visible = false;
         // カーソルを画面中央にロックする
         Cursor.lockState = CursorLockMode.Locked;
+        // カーソル非表示
+        Cursor.visible = false;
     }
 
+    /// <summary>
+    /// カーソル表示
+    /// </summary>
     public void ShowMouseCursor() {
-        // カーソル表示
-        Cursor.visible = true;
         // カーソルのロックを解除
         Cursor.lockState = CursorLockMode.None;
+        // カーソル表示
+        Cursor.visible = true;
     }
 
     private async void Update() {
-        updateTransformTime += Time.deltaTime;
-        if (updateTransformTime >= 0.1f) {
-            updateTransformTime = 0;
-
-            if (isJoined) {
-                await roomModel.UpdateTransformAsync(playerManager.transform.position, playerManager.transform.rotation);
-            }
-        }
-
-        if (Input.GetKeyDown(KeyCode.Escape)) {
+        if(Input.GetKeyDown(KeyCode.Escape)) {
             isShowMouseCursor = isShowMouseCursor ? false : true;
             if(isShowMouseCursor) {
                 ShowMouseCursor();
@@ -102,8 +103,19 @@ public class GameManager : MonoBehaviour {
         }
     }
 
+    /// <summary>
+    /// キャラクターオブジェクトをコネクションIDで検索して返す
+    /// </summary>
+    /// <param name="connectionId"></param>
+    /// <returns></returns>
+    public GameObject FindCharacterObject(Guid connectionId) {
+         return characterList.FirstOrDefault( _ => _.Key == connectionId ).Value;
+    }
+
+    /// <summary>
+    /// 入室処理
+    /// </summary>
     public async void JoinRoom() {
-        // 入室
         string roomName = roomNameInputFieldText.text;
 
         if (roomName.Length < 1) {
@@ -113,60 +125,97 @@ public class GameManager : MonoBehaviour {
 
         int userId = int.Parse(userIdInputFieldText.text);
 
-        myUserId = userId;
-
         try {
             // ユーザー情報を取得
-            myself = await userModel.GetUserAsync(myUserId);
+            mySelf.UserData = await UserModel.Instance.GetUserAsync(userId);
         }
         catch (Exception e) {
             Debug.LogError("GetUser failed");
             Debug.LogException(e);
         }
 
-        await roomModel.JoinAsync(roomName, userId);
+        // 自分のコネクションIDを保存
+        mySelf.ConnectionId = await RoomModel.Instance.GetConnectionIdAsync();
+
+        playerManager.thisCharacterConnectionId = mySelf.ConnectionId;
+
+        // 参加
+        await RoomModel.Instance.JoinAsync(roomName, userId);
     }
 
+    /// <summary>
+    /// 退室処理
+    /// </summary>
     public async void LeaveRoom() {
-        // 退出
-        isJoined = false;
-
-        await roomModel.LeaveAsync();
-
-        foreach (GameObject character in characterList.Values) {
-            Destroy(character);
+        if (!isJoined) {
+            return;
         }
 
+        isJoined = false;
+
+        await RoomModel.Instance.LeaveAsync();
+
+        foreach (KeyValuePair<Guid, GameObject> character in characterList) {
+            if (character.Key != mySelf.ConnectionId) {
+                Destroy(character.Value);
+            }
+        }
+
+        mySelf = new JoinedUser();
         characterList = new Dictionary<Guid, GameObject>();
     }
 
-    // ユーザーが入室したときの処理
-    private void OnJoinedUser(JoinedUser user) {
-        isJoined = true;
 
+    /// <summary>
+    /// [サーバー通知]
+    /// ユーザーが入室したときの処理
+    /// </summary>
+    /// <param name="user"></param>
+    private void OnJoinedUser(JoinedUser user) {
         // すでに表示済みのユーザーは追加しない
         if (characterList.ContainsKey(user.ConnectionId)) {
             return;
         }
 
-        // 自分は追加しない
-        if (user.UserData.Id == myUserId) {
-            myConnectionId = user.ConnectionId;
+        // 自分は生成しない
+        if (user.UserData.Id == mySelf.UserData.Id) {
+            isJoined = true;
+
+            // フィールドで保持
+            myCharacter.name = "Player_" + user.JoinOrder;
+            characterList[mySelf.ConnectionId] = myCharacter;
+
+            // 参加順番を保存
+            mySelf.JoinOrder = user.JoinOrder;
             return;
         }
 
         GameObject characterObject = Instantiate(characterPrefab); // インスタンス生成
+        characterObject.name = "Player_" + user.JoinOrder;
+        characterObject.GetComponent<PlayerManager>().thisCharacterConnectionId = user.ConnectionId;
+        //characterObject.GetComponent<PlayerManager>().enabled = false;
+        //characterObject.GetComponent<PlayerController>().enabled = false;
         characterObject.transform.position = Vector3.zero;
-        characterObject.GetComponent<PlayerManager>().enabled = false;
         characterList[user.ConnectionId] = characterObject; // フィールドで保持
 
-        Debug.Log("接続ID : " + user.ConnectionId + ", ユーザーID : " + user.UserData.Id + ", ユーザー名 : " + user.UserData.Name);
+        Debug.Log("接続ID : " + user.ConnectionId + ", ユーザーID : " + user.UserData.Id + ", ユーザー名 : " + user.UserData.Name + ", 参加順番 : " + user.JoinOrder);
     }
 
-    // ユーザーが退出したときの処理
-    private void OnLeavedUser(Guid connectionId) {
-        if (myConnectionId == connectionId) {
+    /// <summary>
+    /// [サーバー通知]
+    /// ユーザーが退出したときの処理
+    /// </summary>
+    /// <param name="connectionId"></param>
+    private void OnLeavedUser(Guid connectionId, int joinOrder) {
+        if (mySelf.ConnectionId == connectionId) {
             return;
+        }
+
+        // 参加順番を繰り下げ
+        if (mySelf.JoinOrder > joinOrder) {
+            mySelf.JoinOrder -= 1;
+            myCharacter.name = "Player_" + joinOrder;
+            characterList[mySelf.ConnectionId].name = "Player_" + joinOrder;
         }
 
         Destroy(characterList[connectionId]);
@@ -174,43 +223,103 @@ public class GameManager : MonoBehaviour {
         characterList.Remove(connectionId);
     }
 
-    // ユーザーのTransfromを反映
-    private void OnUpdatedTransformUser(Guid connectionId, Vector3 pos, Quaternion rotate) {
-        if (myConnectionId == connectionId) {
+
+    /// <summary>
+    /// [サーバー通知]
+    /// ユーザーのTransfromを反映
+    /// </summary>
+    /// <param name="connectionId"></param>
+    /// <param name="pos"></param>
+    /// <param name="rotate"></param>
+    private void OnUpdatedTransformUser(Guid connectionId, Vector3 pos, Quaternion rotate, Quaternion cameraRotate) {
+        if (mySelf.ConnectionId == connectionId) {
             return;
         }
 
         if (characterList.ContainsKey(connectionId) &&
             characterList[connectionId] != null) {
-            characterList[connectionId].transform.DOMove(pos, 0.1f).SetEase(Ease.InOutQuad);
-            characterList[connectionId].transform.DORotateQuaternion(rotate, 0.1f).SetEase(Ease.InOutQuad);
+            characterList[connectionId].transform.DOMove(pos, 0.2f).SetEase(Ease.InOutQuad);
+            characterList[connectionId].transform.DORotateQuaternion(rotate, 0.2f).SetEase(Ease.InOutQuad);
+
+            characterList[connectionId].GetComponent<PlayerManager>().cameraRotate = cameraRotate;
         }
     }
 
-    // オブジェクトをリストに追加
+
+    /// <summary>
+    /// オブジェクトをリストに追加
+    /// </summary>
+    /// <param name="objectId"></param>
+    /// <param name="obj"></param>
     public void AddObjectList(Guid objectId, GameObject obj) {
         objectList[objectId] = obj;
     }
 
-    // オブジェクトを作成
-    private void OnCreatedObject(Guid connectionId, Guid objectId, Vector3 pos, Quaternion rotate) {
-        if (myConnectionId == connectionId) {
-            return;
+    /// <summary>
+    /// [サーバー通知]
+    /// オブジェクトを作成
+    /// </summary>
+    /// <param name="objectId"></param>
+    /// <param name="objectDataId"></param>
+    /// <param name="pos"></param>
+    /// <param name="rotate"></param>
+    /// <param name="updateType"></param>
+    private void OnCreatedObject(Guid connectionId, Guid objectId, int objectDataId, Vector3 pos, Quaternion rotate, UpdateObjectTypes updateType) {
+        GameObject objData = objectDataSO.objectDataList.FirstOrDefault(_ => _.id == objectDataId).objectData;
+
+        GameObject obj;
+
+        if (objData.GetComponent<NetworkObject>().parentTransformName == "") {
+            obj = Instantiate(objData, pos, rotate); // インスタンス生成
+        }
+        else {
+            Transform parent = GameObject.Find(objData.GetComponent<NetworkObject>().parentTransformName).GetComponent<Transform>();
+            obj = Instantiate(objData, pos, rotate, parent); // インスタンス生成
         }
 
-        GameObject obj = Instantiate(objectPrefab, pos, rotate); // インスタンス生成
-        obj.GetComponent<NetworkObject>().myObjectId = objectId;
+        NetworkObject netObj = obj.GetComponent<NetworkObject>();
+        netObj.myObjectId = objectId;
+        netObj.createrConnectionId = connectionId;
+        netObj.updateType = updateType;
+
         objectList[objectId] = obj; // フィールドで保持
     }
 
-    // オブジェクトをリストから削除
+
+    /// <summary>
+    /// [サーバー通知]
+    /// オブジェクトのフィールドを変更
+    /// </summary>
+    /// <param name="objectId"></param>
+    public void OnFalsedObjectInteracting(Guid objectId) {
+        if(!objectList.ContainsKey(objectId)) {
+            return;
+        }
+
+        objectList[objectId].GetComponent<NetworkObject>().FalseIsInteracting();
+    }
+
+
+    /// <summary>
+    /// [サーバー通知]
+    /// オブジェクトをリストから削除
+    /// </summary>
+    /// <param name="objectId"></param>
     public void RemoveObjectList(Guid objectId) {
+        if (!objectList.ContainsKey(objectId)) {
+            return;
+        }
+
         objectList.Remove(objectId);
     }
 
-    // オブジェクトを破棄
-    private void OnDestroyedObject(Guid connectionId, Guid objectId) {
-        if (myConnectionId == connectionId) {
+    /// <summary>
+    /// [サーバー通知]
+    /// オブジェクトを破棄
+    /// </summary>
+    /// <param name="objectId"></param>
+    private void OnDestroyedObject(Guid objectId) {
+        if (!objectList.ContainsKey(objectId)) {
             return;
         }
 
@@ -219,16 +328,19 @@ public class GameManager : MonoBehaviour {
         objectList.Remove(objectId);
     }
 
-    // オブジェクトのTransformを反映
-    private void OnUpdateObjectTransform(Guid connectionId, Guid objectId, Vector3 pos, Quaternion rotate) {
-        if (myConnectionId == connectionId) {
-            return;
-        }
 
+    /// <summary>
+    /// [サーバー通知]
+    /// オブジェクトのTransformを反映
+    /// </summary>
+    /// <param name="objectId"></param>
+    /// <param name="pos"></param>
+    /// <param name="rotate"></param>
+    private void OnUpdatedObjectTransform(Guid objectId, Vector3 pos, Quaternion rotate) {
         if (objectList.ContainsKey(objectId) &&
             objectList[objectId] != null) {
-            objectList[objectId].transform.DOMove(pos, 0.1f).SetEase(Ease.InOutQuad);
-            objectList[objectId].transform.DORotateQuaternion(rotate, 0.1f).SetEase(Ease.InOutQuad);
+            objectList[objectId].transform.DOMove(pos, 0.2f).SetEase(Ease.InOutQuad);
+            objectList[objectId].transform.DORotateQuaternion(rotate, 0.2f).SetEase(Ease.InOutQuad);
         }
     }
 }
