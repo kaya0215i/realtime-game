@@ -14,46 +14,79 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         // [サーバーに実装]
         // [クライアントから呼び出す]
 
-        // ユーザー入室
+        /// <summary>
+        /// ユーザー入室
+        /// </summary>
         Task<JoinedUser[]> JoinAsync(string roomName, int userId);
 
-        // ユーザー退室
+        /// <summary>
+        /// ユーザー退室
+        /// </summary>
         Task LeaveAsync();
 
-        // ロビールームの入室
+        /// <summary>
+        /// ロビールームの入室
+        /// </summary>
         Task<JoinedUser[]> JoinLobyAsync(int userId);
 
-        // ロビールームの退室
+        /// <summary>
+        /// ロビールームの退室
+        /// </summary>
         Task LeaveLobyAsync();
 
-        // チームを作成
+        /// <summary>
+        /// チームを作成
+        /// </summary>
         Task<Guid> CreateTeamAndJoinAsync();
 
-        // チームに参加
+        /// <summary>
+        /// チームに参加
+        /// </summary>
         Task<JoinedUser[]> JoinTeamAsync(Guid targetTeamId);
 
-        // チームを抜ける
+        /// <summary>
+        /// チームを抜ける
+        /// </summary>
         Task LeaveTeamAsync();
 
-        // 接続ID取得
+        /// <summary>
+        /// チームにフレンドを招待
+        /// </summary>
+        Task InviteTeamFriendAsync(Guid targetConnectionId, Guid teamId);
+
+        /// <summary>
+        /// 接続ID取得
+        /// </summary>
         Task<Guid> GetConnectionId();
 
-        // ユーザーTransform更新
+        /// <summary>
+        /// ユーザーTransform更新
+        /// </summary>
         Task UpdateUserTransformAsync(Vector3 pos, Quaternion rotate, Quaternion cameraRotate);
 
-        // オブジェクトの作成
+        /// <summary>
+        /// オブジェクトの作成
+        /// </summary>
         Task<Guid> CreateObjectAsync(int objectDataId, Vector3 pos, Quaternion rotate, int updateTypeNum);
 
-        // オブジェクトの破棄
+        /// <summary>
+        /// オブジェクトの破棄
+        /// </summary>
         Task DestroyObjectAsync(Guid objectId);
 
-        // オブジェクトのTransform更新
+        /// <summary>
+        /// オブジェクトのTransform更新
+        /// </summary>
         Task UpdateObjectTransformAsync(Guid objectId, Vector3 pos, Quaternion rotate);
 
-        // オブジェクトがインタラクト可能であればする
+        /// <summary>
+        /// オブジェクトがインタラクト可能であればする
+        /// </summary>
         Task<bool> InteractObjectAsync(Guid objectId);
 
-        // オブジェクトを手放す
+        /// <summary>
+        /// オブジェクトを手放す
+        /// </summary>
         Task DisInteractObjectAsync(Guid objectId);
     }
 }

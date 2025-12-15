@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-public class UIManager : MonoBehaviour {
+public class GameUIManager : MonoBehaviour {
     [SerializeField] public Text bulletAmountText;
     [SerializeField] public Image shotCoolTimeImage;
 

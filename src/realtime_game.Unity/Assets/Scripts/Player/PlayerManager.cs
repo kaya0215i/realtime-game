@@ -11,7 +11,7 @@ public class PlayerManager : MonoBehaviour {
 
     private Rigidbody myRb;
 
-    [NonSerialized] public UIManager uiManager;
+    [NonSerialized] public GameUIManager uiManager;
 
     // このキャラクターのコネクションID
     [NonSerialized] public Guid thisCharacterConnectionId;
@@ -46,7 +46,7 @@ public class PlayerManager : MonoBehaviour {
 
         myRb = this.GetComponent <Rigidbody>();
 
-        uiManager = GameObject.Find("UICanvas").GetComponent<UIManager>();
+        uiManager = GameObject.Find("UICanvas").GetComponent<GameUIManager>();
     }
 
     private async void Update() {

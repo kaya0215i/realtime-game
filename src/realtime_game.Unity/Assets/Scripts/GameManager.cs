@@ -127,7 +127,7 @@ public class GameManager : MonoBehaviour {
 
         try {
             // ユーザー情報を取得
-            mySelf.UserData = await UserModel.Instance.GetUserAsync(userId);
+            mySelf.UserData = await UserModel.Instance.GetUserByIdAsync(userId);
         }
         catch (Exception e) {
             Debug.LogError("GetUser failed");
@@ -198,7 +198,7 @@ public class GameManager : MonoBehaviour {
         characterObject.transform.position = Vector3.zero;
         characterList[user.ConnectionId] = characterObject; // フィールドで保持
 
-        Debug.Log("接続ID : " + user.ConnectionId + ", ユーザーID : " + user.UserData.Id + ", ユーザー名 : " + user.UserData.Name + ", 参加順番 : " + user.JoinOrder);
+        Debug.Log("接続ID : " + user.ConnectionId + ", ユーザーID : " + user.UserData.Id + ", ユーザー名 : " + user.UserData.Display_Name + ", 参加順番 : " + user.JoinOrder);
     }
 
     /// <summary>

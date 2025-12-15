@@ -3,6 +3,7 @@ using Grpc.Net.Client;
 using MagicOnion;
 using MagicOnion.Client;
 using realtime_game.Shared.Interfaces.StreamingHubs;
+using realtime_game.Shared.Models.Entities;
 using System;
 using System.Threading.Tasks;
 using UnityEditor.MemoryProfiler;
@@ -47,6 +48,9 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     // チーム退出通知
     public Action<Guid> OnLeavedTeamUser { get; set; }
 
+    // チームに招待通知
+    public Action<Guid, User> OnInvitedTeamUser { get; set; }
+
     // ユーザーTransform更新通知
     public Action<Guid, Vector3, Quaternion, Quaternion> OnUpdatedTransformUser { get; set; }
 
@@ -59,7 +63,9 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     // オブジェクトのTransform更新通知
     public Action<Guid, Vector3, Quaternion> OnUpdatedObjectTransform { get; set; }
 
+    // オブジェクトのインタラクトをFalseにする通知
     public Action<Guid> OnFalsedObjectInteracting { get; set; }
+
 
     /// <summary>
     /// MagicOnion接続処理
@@ -244,6 +250,24 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     public void OnLeaveTeam(Guid connectionId) {
         if (OnLeavedTeamUser != null) {
             OnLeavedTeamUser(connectionId);
+        }
+    }
+
+    /// <summary>
+    /// チームにフレンドを招待
+    /// </summary>
+    public async UniTask InviteTeamFriendAsync(Guid targetConnectionId, Guid teamId) {
+        if (roomHub != null) {
+            await roomHub.InviteTeamFriendAsync(targetConnectionId, teamId);
+        }
+    }
+
+    /// <summary>
+    /// チームに招待通知
+    /// </summary>
+    public void OnInviteTeam(Guid teamId, User senderUser) {
+        if (OnInvitedTeamUser != null) {
+            OnInvitedTeamUser(teamId, senderUser);
         }
     }
 
