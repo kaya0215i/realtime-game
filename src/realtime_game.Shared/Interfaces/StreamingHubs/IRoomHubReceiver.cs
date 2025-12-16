@@ -17,12 +17,12 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         /// <summary>
         /// ユーザーの入室通知
         /// </summary>
-        public void OnJoin(JoinedUser user);
+        public void OnJoinRoom(JoinedUser user);
 
         /// <summary>
         /// ユーザーの退室通知
         /// </summary>
-        public void OnLeave(Guid connectionId, int joinOrder);
+        public void OnLeaveRoom(Guid connectionId, int joinOrder);
 
         /// <summary>
         /// ロビールームの入室通知
@@ -48,6 +48,16 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         /// チームに招待通知
         /// </summary>
         public void OnInviteTeam(Guid teamId, User senderUser);
+
+        /// <summary>
+        /// 準備状態通知
+        /// </summary>
+        public void OnIsReadyStatus(Guid connectionId, bool IsReady);
+
+        /// <summary>
+        /// マッチング通知
+        /// </summary>
+        public void OnMatchingRoom(string roomName);
 
         /// <summary>
         /// ユーザーのTransform通知

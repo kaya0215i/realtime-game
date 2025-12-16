@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Cysharp.Runtime.Multicast;
 using realtime_game.Shared.Interfaces.StreamingHubs;
+using realtime_game.Shared.Models.Entities;
 
 namespace realtime_game.Server.StreamingHubs {
     public class RoomContext : IDisposable {

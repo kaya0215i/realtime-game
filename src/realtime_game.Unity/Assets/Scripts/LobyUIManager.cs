@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class LobyUIManager : MonoBehaviour {
@@ -30,9 +31,58 @@ public class LobyUIManager : MonoBehaviour {
     [SerializeField] private GameObject inviteNotificationPrefab;
     [SerializeField] private Transform notificationParent;
 
+    // マッチング、準備用
+    [SerializeField] public GameObject matchingBtn;
+    [SerializeField] public GameObject readyBtn;
+
+    // ユーザーステータス用
+    [SerializeField] public GameObject playerStatusTextPrefab;
+    [SerializeField] public Transform playerStatusParent;
+    [NonSerialized] public Dictionary<Guid, Text> playerStatusTextList = new Dictionary<Guid, Text>();
+
+    private bool isReady = false;
+
     private void Start() {
         // チームに招待通知登録
         RoomModel.Instance.OnInvitedTeamUser += OnInvitedTeamUser;
+        // 準備状態通知登録
+        RoomModel.Instance.OnIsReadyedStatusUser += OnIsReadyedStatusUser;
+    }
+
+    /// <summary>
+    /// マッチングボタンを押したら
+    /// </summary>
+    public async void OnClickMatchingBtn() {
+
+        // ステータステキスト変数
+        playerStatusTextList[lobyManager.mySelf.ConnectionId].text = $"<b>{lobyManager.mySelf.UserData.Display_Name}</b>\n<color=lime>準備完了</color>";
+        await RoomModel.Instance.SendIsReadyStatusAsync(true);
+        // マッチングスタート
+        await RoomModel.Instance.StartMatchingAsync();
+    }
+
+    /// <summary>
+    /// 準備ボタン
+    /// </summary>
+    public async void OnClickReadyBtn() {
+        isReady = !isReady;
+        Image btnImg = readyBtn.GetComponent<Image>();
+        Text btnText = readyBtn.GetComponentInChildren<Text>(true);
+
+        // 準備OK
+        if (isReady) {
+            btnImg.color = new Color(0.7f, 0.6f, 0.3f);
+            btnText.text = "準備完了";
+            playerStatusTextList[lobyManager.mySelf.ConnectionId].text = $"<b>{lobyManager.mySelf.UserData.Display_Name}</b>\n<color=lime>準備完了</color>";
+        }
+        // 準備BAD
+        else {
+            btnImg.color = new Color(1, 0.8f, 0);
+            btnText.text = "準備";
+            playerStatusTextList[lobyManager.mySelf.ConnectionId].text = $"<b>{lobyManager.mySelf.UserData.Display_Name}</b>\n<color=red>準備中</color>";
+        }
+
+        await RoomModel.Instance.SendIsReadyStatusAsync(isReady);
     }
 
     /// <summary>
@@ -252,6 +302,7 @@ public class LobyUIManager : MonoBehaviour {
     }
 
     /// <summary>
+    /// [サーバー通知]
     /// チームに招待通知
     /// </summary>
     private void OnInvitedTeamUser(Guid teamId, User senderUser) {
@@ -277,5 +328,26 @@ public class LobyUIManager : MonoBehaviour {
                 });
             }
         }
+    }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// 準備状態通知
+    /// </summary>
+    private void OnIsReadyedStatusUser(Guid connectionId, bool IsReady) {
+        // 自分のだったら何もしない
+        if (lobyManager.mySelf.ConnectionId == connectionId) {
+            return;
+        }
+
+        // ステータステキストを設定
+        string statusText;
+        if (IsReady) {
+            statusText = $"<b>{lobyManager.TeamPlayerList[connectionId].joinedData.UserData.Display_Name}</b>\n<color=lime>準備完了</color>";
+        }
+        else {
+            statusText = $"<b>{lobyManager.TeamPlayerList[connectionId].joinedData.UserData.Display_Name}</b>\n<color=red>準備中</color>";
+        }
+        playerStatusTextList[connectionId].text = statusText ;
     }
 }

@@ -31,5 +31,10 @@ namespace realtime_game.Server.StreamingHubs {
                 RoomContext?.Dispose();
             }
         }
+
+        // 全ルームコンテキストの取得
+        public ConcurrentDictionary<string, RoomContext> GetAllContext() {
+            return contexts;
+        }
     }
 }

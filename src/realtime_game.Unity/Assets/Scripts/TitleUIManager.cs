@@ -8,14 +8,18 @@ using UnityEngine.UI;
 public class TitleUIManager : MonoBehaviour {
     [SerializeField] private SaveManager saveManager;
 
+    // ロード画像
     [SerializeField] private Image loadingImage;
+    // エラーテキスト
     [SerializeField] private Text errorText;
 
+    // ユーザーログイン用
     [SerializeField] private GameObject loginUI;
     [SerializeField] private Text loginIdInputField;
     [SerializeField] private Text loginPasswordInputField;
     [SerializeField] private Toggle autoLoginToggle;
 
+    // ユーザー登録用
     [SerializeField] private GameObject registerUI;
     [SerializeField] private Text registerIdInputField;
     [SerializeField] private Text registerPasswordInputField;

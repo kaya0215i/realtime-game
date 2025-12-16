@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.TextCore.Text;
 using UnityEngine.UI;
 
@@ -28,7 +29,7 @@ public class LobyManager : MonoBehaviour {
     public Guid MyTeamId {  get; private set; }
 
     // チームプレイヤーのリスト
-    private Dictionary<Guid, LobyUserData> teamPlayerList = new Dictionary<Guid, LobyUserData>();
+    public Dictionary<Guid, LobyUserData> TeamPlayerList { get; private set; } = new Dictionary<Guid, LobyUserData>();
 
     // チームのプレイヤー最大人数
     private int teamMaxPlayerAmount = 5;
@@ -38,6 +39,9 @@ public class LobyManager : MonoBehaviour {
 
     // 自分のキャラクターオブジェクト
     private GameObject myCharacter;
+    // 自分のステータステキスト
+    private Text myStatusText;
+    private Vector3 StatusTextOffset = new Vector3(0, 6f, 0);
 
     private void Awake() {
         teamPlayerAmount = 0;
@@ -56,8 +60,15 @@ public class LobyManager : MonoBehaviour {
         RoomModel.Instance.OnJoinedTeamUser += OnJoinedTeamUser;
         RoomModel.Instance.OnLeavedTeamUser += OnLeavedTeamUser;
 
+        // マッチング通知
+        RoomModel.Instance.OnMatchingedRoomUser += OnMatchingedRoomUser;
+
         // プレイヤーを生成する
         myCharacter = Instantiate(playerPrefab, playerStandList[0].position, playerPrefab.transform.rotation, playerObjectParent);
+
+        // ステータステキストを生成
+        myStatusText = Instantiate(lobyUIManager.playerStatusTextPrefab, parent: lobyUIManager.playerStatusParent).GetComponent<Text>();
+        myStatusText.rectTransform.position = RectTransformUtility.WorldToScreenPoint(Camera.main, myCharacter.transform.position + StatusTextOffset);
 
         await JoinLobyRoom();
 
@@ -68,7 +79,7 @@ public class LobyManager : MonoBehaviour {
         // デバッグ用
         if(Input.GetKeyDown(KeyCode.F)) {
             string teamPlayerInfo = "{\n";
-            foreach(var item in teamPlayerList) {
+            foreach(var item in TeamPlayerList) {
                 teamPlayerInfo += "    [\n";
                 teamPlayerInfo += "        ID : " + item.Value.joinedData.UserData.Id + "\n";
                 teamPlayerInfo += "        名前 : " + item.Value.joinedData.UserData.Display_Name +"\n";
@@ -108,13 +119,15 @@ public class LobyManager : MonoBehaviour {
     /// ロビールームに参加
     /// </summary>
     private async UniTask JoinLobyRoom() {
-
-        // 自分のユーザーIDとコネクションIDを保存
-        mySelf.UserData.Id = UserModel.Instance.UserId;
+        // 自分のユーザー情報とコネクションIDを保存
+        mySelf.UserData = await UserModel.Instance.GetUserByIdAsync(UserModel.Instance.UserId);
         mySelf.ConnectionId = await RoomModel.Instance.GetConnectionIdAsync();
 
+        // ステータステキスト設定
+        myStatusText.text = $"<b>{mySelf.UserData.Display_Name}</b>\n<color=red>準備中</color>";
+
         // 参加
-        await RoomModel.Instance.JoinLobyAsync(mySelf.UserData.Id);
+        await RoomModel.Instance.JoinLobyAsync();
     }
 
     /// <summary>
@@ -177,7 +190,7 @@ public class LobyManager : MonoBehaviour {
     /// チームにそのユーザーがいるか
     /// </summary>
     public bool InTeamUser(int userId) {
-        return teamPlayerList.Any(userData => userData.Value.joinedData.UserData.Id == userId);
+        return TeamPlayerList.Any(userData => userData.Value.joinedData.UserData.Id == userId);
     } 
 
     /// <summary>
@@ -186,9 +199,11 @@ public class LobyManager : MonoBehaviour {
     private async UniTask CreateTeamAndJoin() {
         MyTeamId = await RoomModel.Instance.CreateTeamAndJoinAsync();
         // チームリストに自分を追加
-        teamPlayerList[mySelf.ConnectionId] = lobyUserList[mySelf.ConnectionId];
+        TeamPlayerList[mySelf.ConnectionId] = lobyUserList[mySelf.ConnectionId];
         teamPlayerAmount++;
-        Debug.Log(MyTeamId);
+
+        // ステータステキストリストに追加
+        lobyUIManager.playerStatusTextList[mySelf.ConnectionId] = myStatusText;
 
         // 退出ボタンの切替
         if (teamPlayerAmount > 1) {
@@ -197,6 +212,9 @@ public class LobyManager : MonoBehaviour {
         else {
             lobyUIManager.SwitchActiveLeaveBtn(false);
         }
+
+        // マッチングボタン設定
+        lobyUIManager.matchingBtn.SetActive(true);
     }
 
     /// <summary>
@@ -206,9 +224,11 @@ public class LobyManager : MonoBehaviour {
         await LeaveTeam(false);
 
         // チームプレイヤーリストに自分を追加
-        teamPlayerList[mySelf.ConnectionId] = lobyUserList[mySelf.ConnectionId];
-
+        TeamPlayerList[mySelf.ConnectionId] = lobyUserList[mySelf.ConnectionId];
         teamPlayerAmount++;
+
+        // ステータステキストリストに追加
+        lobyUIManager.playerStatusTextList[mySelf.ConnectionId] = myStatusText;
 
         // 退出ボタンの切替
         if (teamPlayerAmount > 1) {
@@ -221,6 +241,9 @@ public class LobyManager : MonoBehaviour {
         // 参加
         await RoomModel.Instance.JoinTeamAsync(targetTeamId);
         MyTeamId = targetTeamId;
+
+        // マッチングボタン設定
+        lobyUIManager.readyBtn.SetActive(true);
 
         // UIを更新
         lobyUIManager.UpdateUI();
@@ -239,20 +262,36 @@ public class LobyManager : MonoBehaviour {
     private async UniTask LeaveTeam(bool IsNewCreateTeam) {
         await RoomModel.Instance.LeaveTeamAsync();
 
-        foreach (LobyUserData userData in teamPlayerList.Values) {
+        // プレイヤーを削除
+        foreach (LobyUserData userData in TeamPlayerList.Values) {
             if (userData.joinedData.ConnectionId != mySelf.ConnectionId) {
                 Destroy(userData.playerObject);
             }
         }
 
         // チームプレイヤーリストを初期化
-        teamPlayerList = new Dictionary<Guid, LobyUserData>();
+        TeamPlayerList = new Dictionary<Guid, LobyUserData>();
 
         teamPlayerAmount = 0;
 
+        // マッチングボタン設定
+        lobyUIManager.matchingBtn.SetActive(false);
+        lobyUIManager.readyBtn.SetActive(false);
+
+        // チーム作成
         if (IsNewCreateTeam) {
             await CreateTeamAndJoin();
         }
+
+        // ステータステキストを削除
+        foreach (var textList in lobyUIManager.playerStatusTextList) {
+            if(textList.Key != mySelf.ConnectionId) {
+                Destroy(textList.Value.gameObject);
+            }
+        }
+
+        // ステータステキストを初期化
+        lobyUIManager.playerStatusTextList = new Dictionary<Guid, Text>();
     }
 
     /// <summary>
@@ -261,7 +300,7 @@ public class LobyManager : MonoBehaviour {
     /// </summary>
     private void OnJoinedTeamUser(JoinedUser user) {
         // すでに表示済みのユーザーは表示しない
-        if (teamPlayerList.ContainsKey(user.ConnectionId)) {
+        if (TeamPlayerList.ContainsKey(user.ConnectionId)) {
             return;
         }
 
@@ -273,9 +312,20 @@ public class LobyManager : MonoBehaviour {
         // フィールドで保持
         GameObject createdPlayer = Instantiate(playerPrefab, playerStandList[teamPlayerAmount].position, playerPrefab.transform.rotation, playerObjectParent);
         LobyUserData userData = new LobyUserData() { joinedData = user, playerObject = createdPlayer };
-        teamPlayerList[user.ConnectionId] = userData;
-
+        TeamPlayerList[user.ConnectionId] = userData;
         teamPlayerAmount++;
+
+        // ステータステキストを生成
+        GameObject createdStatusObj = Instantiate(lobyUIManager.playerStatusTextPrefab, parent: lobyUIManager.playerStatusParent);
+        //　テキストを設定する
+        Text statusText = createdStatusObj.GetComponent<Text>();
+        statusText.text = $"<b>{user.UserData.Display_Name}</b>\n<color=red>準備中</color>";
+
+        // 位置を設定
+        statusText.rectTransform.position = RectTransformUtility.WorldToScreenPoint(Camera.main, createdPlayer.transform.position + StatusTextOffset);
+
+        // フィールドで保持
+        lobyUIManager.playerStatusTextList[user.ConnectionId] = statusText;
 
         // 退出ボタンの切替
         if (teamPlayerAmount > 1) {
@@ -292,7 +342,7 @@ public class LobyManager : MonoBehaviour {
     /// </summary>
     private void OnLeavedTeamUser(Guid connectionId) {
         // チームに存在しなかったら何もしない
-        if (!teamPlayerList.ContainsKey(connectionId)) {
+        if (!TeamPlayerList.ContainsKey(connectionId)) {
             return;
         }
 
@@ -302,10 +352,13 @@ public class LobyManager : MonoBehaviour {
         }
 
         // プレイヤー情報削除
-        Destroy(teamPlayerList[connectionId].playerObject);
-        teamPlayerList.Remove(connectionId);
-
+        Destroy(TeamPlayerList[connectionId].playerObject);
+        TeamPlayerList.Remove(connectionId);
         teamPlayerAmount--;
+
+        // ステータステキストリストから削除
+        Destroy(lobyUIManager.playerStatusTextList[connectionId].gameObject);
+        lobyUIManager.playerStatusTextList.Remove(connectionId);
 
         // 退出ボタンの切替
         if (teamPlayerAmount > 1) {
@@ -314,5 +367,14 @@ public class LobyManager : MonoBehaviour {
         else {
             lobyUIManager.SwitchActiveLeaveBtn(false);
         }
+    }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// マッチング通知
+    /// </summary>
+    public void OnMatchingedRoomUser(string roomName) {
+        Debug.Log("マッチング通知 : " + roomName);
+        SceneManager.LoadScene("GameScene");
     }
 }

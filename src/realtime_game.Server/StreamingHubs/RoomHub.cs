@@ -1,4 +1,5 @@
-﻿using MagicOnion.Server.Hubs;
+﻿using MagicOnion;
+using MagicOnion.Server.Hubs;
 using Microsoft.EntityFrameworkCore;
 using realtime_game.Server.Models.Contexts;
 using realtime_game.Shared.Interfaces.StreamingHubs;
@@ -14,17 +15,27 @@ namespace realtime_game.Server.StreamingHubs {
 
         private RoomContext? _roomContext;
 
-        public RoomHub(
-            RoomContextRepository roomContextRepository,
-            GameDbContext dbContext) {
+        public RoomHub(RoomContextRepository roomContextRepository, GameDbContext dbContext) {
             _roomContextRepository = roomContextRepository;
             _dbContext = dbContext;
         }
 
         /// <summary>
+        /// コンテキストを取得
+        /// </summary>
+        private void GetContext(string roomName) {
+            // コンテキストを取得
+            this._roomContext = this._roomContextRepository.GetContext(roomName);
+            if (_roomContext == null ||
+                !_roomContext.RoomUserDataList.ContainsKey(this.ConnectionId)) {
+                throw new ReturnStatusException(Grpc.Core.StatusCode.NotFound, "Context Not Found.");
+            }
+        }
+
+        /// <summary>
         /// ルームに接続
         /// </summary>
-        public async Task<JoinedUser[]> JoinAsync(string roomName, int userId) {
+        public async Task<JoinedUser[]> JoinRoomAsync(string roomName, int userId) {
             // 同時に生成しない用に排他制御
             lock (_roomContextRepository) {
                 // 指定の名前のルームがあるかどうかを確認
@@ -57,8 +68,8 @@ namespace realtime_game.Server.StreamingHubs {
                 joinedUser.JoinOrder = this._roomContext.RoomUserDataList.Count + 1;
 
                 // ルーム内に同じユーザーIDの人がいたら
-                foreach(var item in _roomContext.RoomUserDataList.Values) {
-                    if (item.JoinedUser.UserData.Id == userId) {
+                foreach(var roomUser in _roomContext.RoomUserDataList.Values) {
+                    if (roomUser.JoinedUser.UserData.Id == userId) {
                         // ルーム内のメンバーから自分を削除
                         this._roomContext.Group.Remove(this.ConnectionId);
                         JoinedUser[] nonUser = Array.Empty<JoinedUser>();
@@ -81,7 +92,7 @@ namespace realtime_game.Server.StreamingHubs {
             }
 
             // 自分以外のルーム参加者全員に、ユーザーの入室通知を送信
-            this._roomContext.Group.Except([this.ConnectionId]).OnJoin(joinedUser);
+            this._roomContext.Group.Except([this.ConnectionId]).OnJoinRoom(joinedUser);
 
             // 入室リクエストをしたユーザーに、参加者の情報をリストで返す
             return this._roomContext.RoomUserDataList.Select(
@@ -91,11 +102,9 @@ namespace realtime_game.Server.StreamingHubs {
         /// <summary>
         /// 退出処理
         /// </summary>
-        public Task LeaveAsync() {
-            if (_roomContext == null ||
-                !_roomContext.RoomUserDataList.ContainsKey(this.ConnectionId)) {
-                return Task.CompletedTask;
-            }
+        public Task LeaveRoomAsync(string roomName) {
+            // コンテキストを取得
+            GetContext(roomName);
 
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.Write("LeaveRoom : ");
@@ -108,7 +117,7 @@ namespace realtime_game.Server.StreamingHubs {
 
             // 退出したことを全メンバーに通知
             int LeaveJoinOrder = _roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.JoinOrder;
-            this._roomContext.Group.All.OnLeave(this.ConnectionId, LeaveJoinOrder);
+            this._roomContext.Group.All.OnLeaveRoom(this.ConnectionId, LeaveJoinOrder);
 
             // ルーム内のメンバーから自分を削除
             this._roomContext.Group.Remove(this.ConnectionId);
@@ -207,10 +216,8 @@ namespace realtime_game.Server.StreamingHubs {
         /// ロビールームの退室
         /// </summary>
         public Task LeaveLobyAsync() {
-            if (_roomContext == null ||
-                !_roomContext.RoomUserDataList.ContainsKey(this.ConnectionId)) {
-                return Task.CompletedTask;
-            }
+            // コンテキストを取得
+            GetContext("Loby");
 
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.Write("LeaveLoby : ");
@@ -255,18 +262,20 @@ namespace realtime_game.Server.StreamingHubs {
         /// 切断時の処理
         /// </summary>
         protected override ValueTask OnDisconnected() {
-            if (this._roomContext == null) {
-                return CompletedTask;
+            foreach (var item in this._roomContextRepository.GetAllContext()) {
+                this._roomContext = item.Value;
+
+                if (item.Key == "Loby") {
+                    // ロビーから退室しチームを抜ける
+                    LeaveTeamAsync();
+                    LeaveLobyAsync();
+                }
+                else {
+                    // ルームから退室
+                    LeaveRoomAsync(item.Key);
+                }
             }
 
-            LeaveTeamAsync();
-
-            if (_roomContext.Name == "Loby") {
-                LeaveLobyAsync();
-            }
-            else {
-                LeaveAsync();
-            }
             return CompletedTask;
         }
 
@@ -274,6 +283,9 @@ namespace realtime_game.Server.StreamingHubs {
         /// チームを作成
         /// </summary>
         public async Task<Guid> CreateTeamAndJoinAsync() {
+            // コンテキストを取得
+            GetContext("Loby");
+
             // もうチームに入っていたら何もしない
             Guid findTeamId = this._roomContext.TeamUserDataList.FirstOrDefault(a=> a.Value.ContainsKey(this.ConnectionId)).Key;
             if(findTeamId != Guid.Empty) {
@@ -304,8 +316,11 @@ namespace realtime_game.Server.StreamingHubs {
         /// チームに参加
         /// </summary>
         public async Task<JoinedUser[]> JoinTeamAsync(Guid targetTeamId) {
+            // コンテキストを取得
+            GetContext("Loby");
+
             // 人数が5人以上だったらなにもしない
-            if( this._roomContext.TeamUserDataList[targetTeamId].Count() >= 5) {
+            if ( this._roomContext.TeamUserDataList[targetTeamId].Count() >= 5) {
                 JoinedUser[] nonUser = Array.Empty<JoinedUser>();
                 return nonUser;
             }
@@ -342,6 +357,9 @@ namespace realtime_game.Server.StreamingHubs {
         /// チームを抜ける
         /// </summary>
         public Task LeaveTeamAsync() {
+            // コンテキストを取得
+            GetContext("Loby");
+
             // チームに入っていなかったら何もしない
             var findTeam = this._roomContext.TeamUserDataList.FirstOrDefault(a => a.Value.ContainsKey(this.ConnectionId));
             if (findTeam.Key == Guid.Empty) {
@@ -383,13 +401,65 @@ namespace realtime_game.Server.StreamingHubs {
         /// チームにフレンドを招待
         /// </summary>
         public async Task InviteTeamFriendAsync(Guid targetConnectionId, Guid teamId) {
+            // コンテキストを取得
+            GetContext("Loby");
+
             // 送り先のコネクションIDが存在するか
-            if(!this._roomContext.RoomUserDataList.ContainsKey(targetConnectionId)) {
+            if (!this._roomContext.RoomUserDataList.ContainsKey(targetConnectionId)) {
                 return;
             }
 
             // ターゲットユーザーに招待を通知
             this._roomContext.Group.Only([targetConnectionId]).OnInviteTeam(teamId, this._roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.UserData);
+        }
+
+        /// <summary>
+        /// 準備状態を通知
+        /// </summary>
+        public async Task SendIsReadyStatusAsync(bool isReady) {
+            // コンテキストを取得
+            GetContext("Loby");
+
+            // チームメンバー取得
+            var teamMember = this._roomContext.TeamUserDataList.FirstOrDefault(tm => tm.Value.ContainsKey(this.ConnectionId));
+
+            // チームメンバーに準備完了状態を通知
+            this._roomContext.Group.Only(teamMember.Value.Keys).OnIsReadyStatus(this.ConnectionId, isReady);
+        }
+
+        /// <summary>
+        /// マッチングする　ルームを探してなかったら作る
+        /// </summary>
+        public async Task StartMatchingAsync() {
+            // コンテキストを取得
+            GetContext("Loby");
+
+            // チームメンバーもマッチングさせる
+            var teamMember = this._roomContext.TeamUserDataList.FirstOrDefault(tm => tm.Value.ContainsKey(this.ConnectionId));
+
+            // ルーム検索
+            string roomName = "";
+            foreach (var roomContext in this._roomContextRepository.GetAllContext()) {
+                // ロビーは無視
+                if (roomContext.Value.Name == "Loby") {
+                    continue;
+                }
+
+                // チーム全員が入れるか確認
+                if (10 - roomContext.Value.RoomUserDataList.Count() >= teamMember.Value.Count()) {
+                    // 入るルームの名前を取得
+                    roomName = roomContext.Value.Name;
+                    break;
+                }
+            }
+
+            // チームに合ったルームがなかったらルーム名を作成
+            if(roomName == "") {
+                roomName = Guid.NewGuid().ToString();
+            }
+
+            // チームメンバーにマッチング通知を送信
+            this._roomContext.Group.Only(teamMember.Value.Keys).OnMatchingRoom(roomName);
         }
 
         /// <summary>

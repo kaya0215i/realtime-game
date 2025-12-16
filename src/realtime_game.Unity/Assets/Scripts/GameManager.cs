@@ -28,9 +28,6 @@ public class GameManager : MonoBehaviour {
     [NonSerialized] public JoinedUser mySelf; // 自分のユーザー情報を保存
     [NonSerialized] public bool isJoined;
 
-    [SerializeField] private Text roomNameInputFieldText;
-    [SerializeField] private Text userIdInputFieldText;
-
     private bool isShowMouseCursor;
 
     private void Awake() {
@@ -39,12 +36,13 @@ public class GameManager : MonoBehaviour {
         isJoined = false;
 
         mySelf = new JoinedUser();
+        mySelf.UserData = new User();
     }
 
     private async void Start() {
         // ユーザーが入退室したときにメソッドを実行するよう、モデルに登録しておく
-        RoomModel.Instance.OnJoinedUser += this.OnJoinedUser;
-        RoomModel.Instance.OnLeavedUser += this.OnLeavedUser;
+        RoomModel.Instance.OnJoinedRoomUser += this.OnJoinedRoomUser;
+        RoomModel.Instance.OnLeavedRoomUser += this.OnLeavedRoomUser;
 
         // ユーザーのTransfromを反映
         RoomModel.Instance.OnUpdatedTransformUser += this.OnUpdatedTransformUser;
@@ -67,8 +65,8 @@ public class GameManager : MonoBehaviour {
         playerController = myCharacter.GetComponent<PlayerController>();
         playerController.cinemachineCamera.Priority = 10;
 
-        // 接続
-        await RoomModel.Instance.ConnectAsync();
+        // ルームに参加
+        JoinRoom();
     }
 
     /// <summary>
@@ -106,8 +104,6 @@ public class GameManager : MonoBehaviour {
     /// <summary>
     /// キャラクターオブジェクトをコネクションIDで検索して返す
     /// </summary>
-    /// <param name="connectionId"></param>
-    /// <returns></returns>
     public GameObject FindCharacterObject(Guid connectionId) {
          return characterList.FirstOrDefault( _ => _.Key == connectionId ).Value;
     }
@@ -116,22 +112,14 @@ public class GameManager : MonoBehaviour {
     /// 入室処理
     /// </summary>
     public async void JoinRoom() {
-        string roomName = roomNameInputFieldText.text;
-
-        if (roomName.Length < 1) {
-            Debug.Log("ルーム名を入力してください");
-            return;
-        }
-
-        int userId = int.Parse(userIdInputFieldText.text);
-
         try {
             // ユーザー情報を取得
-            mySelf.UserData = await UserModel.Instance.GetUserByIdAsync(userId);
+            mySelf.UserData = await UserModel.Instance.GetUserByIdAsync(UserModel.Instance.UserId);
         }
         catch (Exception e) {
             Debug.LogError("GetUser failed");
             Debug.LogException(e);
+            return;
         }
 
         // 自分のコネクションIDを保存
@@ -140,7 +128,7 @@ public class GameManager : MonoBehaviour {
         playerManager.thisCharacterConnectionId = mySelf.ConnectionId;
 
         // 参加
-        await RoomModel.Instance.JoinAsync(roomName, userId);
+        await RoomModel.Instance.JoinRoomAsync();
     }
 
     /// <summary>
@@ -153,7 +141,7 @@ public class GameManager : MonoBehaviour {
 
         isJoined = false;
 
-        await RoomModel.Instance.LeaveAsync();
+        await RoomModel.Instance.LeaveRoomAsync();
 
         foreach (KeyValuePair<Guid, GameObject> character in characterList) {
             if (character.Key != mySelf.ConnectionId) {
@@ -170,8 +158,7 @@ public class GameManager : MonoBehaviour {
     /// [サーバー通知]
     /// ユーザーが入室したときの処理
     /// </summary>
-    /// <param name="user"></param>
-    private void OnJoinedUser(JoinedUser user) {
+    private void OnJoinedRoomUser(JoinedUser user) {
         // すでに表示済みのユーザーは追加しない
         if (characterList.ContainsKey(user.ConnectionId)) {
             return;
@@ -205,8 +192,7 @@ public class GameManager : MonoBehaviour {
     /// [サーバー通知]
     /// ユーザーが退出したときの処理
     /// </summary>
-    /// <param name="connectionId"></param>
-    private void OnLeavedUser(Guid connectionId, int joinOrder) {
+    private void OnLeavedRoomUser(Guid connectionId, int joinOrder) {
         if (mySelf.ConnectionId == connectionId) {
             return;
         }
@@ -228,9 +214,6 @@ public class GameManager : MonoBehaviour {
     /// [サーバー通知]
     /// ユーザーのTransfromを反映
     /// </summary>
-    /// <param name="connectionId"></param>
-    /// <param name="pos"></param>
-    /// <param name="rotate"></param>
     private void OnUpdatedTransformUser(Guid connectionId, Vector3 pos, Quaternion rotate, Quaternion cameraRotate) {
         if (mySelf.ConnectionId == connectionId) {
             return;
@@ -249,8 +232,6 @@ public class GameManager : MonoBehaviour {
     /// <summary>
     /// オブジェクトをリストに追加
     /// </summary>
-    /// <param name="objectId"></param>
-    /// <param name="obj"></param>
     public void AddObjectList(Guid objectId, GameObject obj) {
         objectList[objectId] = obj;
     }
@@ -259,11 +240,6 @@ public class GameManager : MonoBehaviour {
     /// [サーバー通知]
     /// オブジェクトを作成
     /// </summary>
-    /// <param name="objectId"></param>
-    /// <param name="objectDataId"></param>
-    /// <param name="pos"></param>
-    /// <param name="rotate"></param>
-    /// <param name="updateType"></param>
     private void OnCreatedObject(Guid connectionId, Guid objectId, int objectDataId, Vector3 pos, Quaternion rotate, UpdateObjectTypes updateType) {
         GameObject objData = objectDataSO.objectDataList.FirstOrDefault(_ => _.id == objectDataId).objectData;
 
@@ -290,7 +266,6 @@ public class GameManager : MonoBehaviour {
     /// [サーバー通知]
     /// オブジェクトのフィールドを変更
     /// </summary>
-    /// <param name="objectId"></param>
     public void OnFalsedObjectInteracting(Guid objectId) {
         if(!objectList.ContainsKey(objectId)) {
             return;
@@ -304,7 +279,6 @@ public class GameManager : MonoBehaviour {
     /// [サーバー通知]
     /// オブジェクトをリストから削除
     /// </summary>
-    /// <param name="objectId"></param>
     public void RemoveObjectList(Guid objectId) {
         if (!objectList.ContainsKey(objectId)) {
             return;
@@ -317,7 +291,6 @@ public class GameManager : MonoBehaviour {
     /// [サーバー通知]
     /// オブジェクトを破棄
     /// </summary>
-    /// <param name="objectId"></param>
     private void OnDestroyedObject(Guid objectId) {
         if (!objectList.ContainsKey(objectId)) {
             return;
@@ -333,9 +306,6 @@ public class GameManager : MonoBehaviour {
     /// [サーバー通知]
     /// オブジェクトのTransformを反映
     /// </summary>
-    /// <param name="objectId"></param>
-    /// <param name="pos"></param>
-    /// <param name="rotate"></param>
     private void OnUpdatedObjectTransform(Guid objectId, Vector3 pos, Quaternion rotate) {
         if (objectList.ContainsKey(objectId) &&
             objectList[objectId] != null) {

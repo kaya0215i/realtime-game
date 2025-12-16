@@ -27,6 +27,8 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     private GrpcChannelx channel;
     private IRoomHub roomHub;
 
+    private string roomName;
+
     // 接続ID
     public Guid ConnectionId { get; set; }
 
@@ -37,10 +39,10 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     public Action<Guid, int> OnLeavedLobyUser { get; set; }
 
     // ユーザー接続通知
-    public Action<JoinedUser> OnJoinedUser { get; set; }
+    public Action<JoinedUser> OnJoinedRoomUser { get; set; }
 
     // ユーザー退出通知
-    public Action<Guid, int> OnLeavedUser { get; set; }
+    public Action<Guid, int> OnLeavedRoomUser { get; set; }
 
     // チーム参加通知
     public Action<JoinedUser> OnJoinedTeamUser { get; set; }
@@ -50,6 +52,12 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
 
     // チームに招待通知
     public Action<Guid, User> OnInvitedTeamUser { get; set; }
+
+    // 準備状態通知
+    public Action<Guid, bool> OnIsReadyedStatusUser { get; set; }
+
+    // マッチング通知
+    public Action<string> OnMatchingedRoomUser { get; set; }
 
     // ユーザーTransform更新通知
     public Action<Guid, Vector3, Quaternion, Quaternion> OnUpdatedTransformUser { get; set; }
@@ -111,8 +119,8 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     /// <summary>
     /// ロビールームに入室
     /// </summary>
-    public async UniTask JoinLobyAsync(int userId) {
-        JoinedUser[] users = await roomHub.JoinLobyAsync(userId);
+    public async UniTask JoinLobyAsync() {
+        JoinedUser[] users = await roomHub.JoinLobyAsync(UserModel.Instance.UserId);
 
         // 配列の長さが0の(ルーム内に同じユーザーIDのプレイヤーがいる)場合何もしない
         if (users.Length == 0) {
@@ -156,9 +164,9 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     /// <summary>
     /// 入室処理
     /// </summary>
-    public async UniTask JoinAsync(string roomName, int userId) {
+    public async UniTask JoinRoomAsync() {
         if (roomHub != null) {
-            JoinedUser[] users = await roomHub.JoinAsync(roomName, userId);
+            JoinedUser[] users = await roomHub.JoinRoomAsync(this.roomName, UserModel.Instance.UserId);
 
             // 配列の長さが0の(ルーム内に同じユーザーIDのプレイヤーがいる)場合何もしない
             if (users.Length == 0) {
@@ -166,8 +174,8 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
             }
 
             foreach (var user in users) {
-                if (OnJoinedUser != null) {
-                    OnJoinedUser(user);
+                if (OnJoinedRoomUser != null) {
+                    OnJoinedRoomUser(user);
                 }
             }
         }
@@ -177,26 +185,26 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     /// [サーバー通知]
     /// 入室通知 (IRoomHubReceiverインタフェースの実装)
     /// </summary>
-    public void OnJoin(JoinedUser user) {
-        if (OnJoinedUser != null) {
-            OnJoinedUser(user);
+    public void OnJoinRoom(JoinedUser user) {
+        if (OnJoinedRoomUser != null) {
+            OnJoinedRoomUser(user);
         }
     }
 
     /// <summary>
     /// 退出処理
     /// </summary>
-    public async UniTask LeaveAsync() {
-        await roomHub.LeaveAsync();
+    public async UniTask LeaveRoomAsync() {
+        await roomHub.LeaveRoomAsync(roomName);
     }
 
     /// <summary>
     /// [サーバー通知]
     /// 退出通知 (IRoomHubReceiverインタフェースの実装)
     /// </summary>
-    public void OnLeave(Guid connectionId, int joinOrder) {
-        if (OnLeavedUser != null) {
-            OnLeavedUser(connectionId, joinOrder);
+    public void OnLeaveRoom(Guid connectionId, int joinOrder) {
+        if (OnLeavedRoomUser != null) {
+            OnLeavedRoomUser(connectionId, joinOrder);
         }
     }
 
@@ -268,6 +276,45 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     public void OnInviteTeam(Guid teamId, User senderUser) {
         if (OnInvitedTeamUser != null) {
             OnInvitedTeamUser(teamId, senderUser);
+        }
+    }
+
+    /// <summary>
+    /// 準備状態を通知
+    /// </summary>
+    public async UniTask SendIsReadyStatusAsync(bool isReady) {
+        if(roomHub != null) {
+            await roomHub.SendIsReadyStatusAsync(isReady);
+        }
+    }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// 準備状態通知
+    /// </summary>
+    public void OnIsReadyStatus(Guid connectionId, bool IsReady) {
+        if (OnIsReadyedStatusUser != null) {
+            OnIsReadyedStatusUser(connectionId, IsReady);
+        }
+    }
+
+    /// <summary>
+    /// マッチングする　ルームを探してなかったら作る
+    /// </summary>
+    public async UniTask StartMatchingAsync() {
+        if(roomHub != null) {
+            await roomHub.StartMatchingAsync();
+        }
+    }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// マッチング通知
+    /// </summary>
+    public void OnMatchingRoom(string roomName) {
+        if (OnMatchingedRoomUser != null) {
+            this.roomName = roomName;
+            OnMatchingedRoomUser(roomName);
         }
     }
 

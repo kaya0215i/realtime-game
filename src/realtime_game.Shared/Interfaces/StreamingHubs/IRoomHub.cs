@@ -17,12 +17,12 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         /// <summary>
         /// ユーザー入室
         /// </summary>
-        Task<JoinedUser[]> JoinAsync(string roomName, int userId);
+        Task<JoinedUser[]> JoinRoomAsync(string roomName, int userId);
 
         /// <summary>
         /// ユーザー退室
         /// </summary>
-        Task LeaveAsync();
+        Task LeaveRoomAsync(string roomName);
 
         /// <summary>
         /// ロビールームの入室
@@ -53,6 +53,16 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         /// チームにフレンドを招待
         /// </summary>
         Task InviteTeamFriendAsync(Guid targetConnectionId, Guid teamId);
+
+        /// <summary>
+        /// 準備状態を通知
+        /// </summary>
+        Task SendIsReadyStatusAsync(bool isReady);
+
+        /// <summary>
+        /// マッチングする　ルームを探してなかったら作る
+        /// </summary>
+        Task StartMatchingAsync();
 
         /// <summary>
         /// 接続ID取得
