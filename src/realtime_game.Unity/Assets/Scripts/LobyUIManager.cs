@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Unity.VisualScripting;
+using UnityEditor.MemoryProfiler;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -40,6 +42,10 @@ public class LobyUIManager : MonoBehaviour {
     [SerializeField] public Transform playerStatusParent;
     [NonSerialized] public Dictionary<Guid, Text> playerStatusTextList = new Dictionary<Guid, Text>();
 
+    // マッチングできるか
+    private bool isStartMatching = false;
+
+    // 準備状態
     private bool isReady = false;
 
     private void Start() {
@@ -49,16 +55,47 @@ public class LobyUIManager : MonoBehaviour {
         RoomModel.Instance.OnIsReadyedStatusUser += OnIsReadyedStatusUser;
     }
 
+    private void Update() {
+        if(Input.GetKeyDown(KeyCode.F)) {
+            string textListLog = "{\n";
+            foreach (var textList in playerStatusTextList) {
+                textListLog += "    [\n";
+                textListLog += "        " + textList.Key + "\n";
+                textListLog += "        " + textList.Value.text + "\n";
+                textListLog += "    ]\n";
+            }
+            textListLog += "}\n";
+
+            Debug.Log(textListLog);
+        }
+    }
+
+    private void OnDisable() {
+        if (RoomModel.Instance != null) {
+            // 通知関連の登録解除
+            RoomModel.Instance.OnInvitedTeamUser -= OnInvitedTeamUser;
+            RoomModel.Instance.OnIsReadyedStatusUser -= OnIsReadyedStatusUser;
+        }
+    }
+
+    private void OnDestroy() {
+        OnDisable();
+    }
+
     /// <summary>
     /// マッチングボタンを押したら
     /// </summary>
     public async void OnClickMatchingBtn() {
-
-        // ステータステキスト変数
-        playerStatusTextList[lobyManager.mySelf.ConnectionId].text = $"<b>{lobyManager.mySelf.UserData.Display_Name}</b>\n<color=lime>準備完了</color>";
-        await RoomModel.Instance.SendIsReadyStatusAsync(true);
-        // マッチングスタート
-        await RoomModel.Instance.StartMatchingAsync();
+        if (isStartMatching) {
+            // ステータステキスト変数
+            playerStatusTextList[lobyManager.mySelf.ConnectionId].text = $"<b>{lobyManager.mySelf.UserData.Display_Name}</b>\n<color=lime>準備完了</color>";
+            await RoomModel.Instance.SendIsReadyStatusAsync(true);
+            // マッチングスタート
+            await RoomModel.Instance.StartMatchingAsync();
+        }
+        else {
+            Debug.Log("チームメンバーの準備が完了していません");
+        }
     }
 
     /// <summary>
@@ -82,7 +119,52 @@ public class LobyUIManager : MonoBehaviour {
             playerStatusTextList[lobyManager.mySelf.ConnectionId].text = $"<b>{lobyManager.mySelf.UserData.Display_Name}</b>\n<color=red>準備中</color>";
         }
 
+        // TeamUserのIsReadyを変更
+        lobyManager.ChangeTeamUserDataIsReady(lobyManager.mySelf.ConnectionId, isReady);
+
         await RoomModel.Instance.SendIsReadyStatusAsync(isReady);
+    }
+
+    /// <summary>
+    /// マッチングボタンを押せるか
+    /// </summary>
+    public void IsOnClickMatchingBtn() {
+        // リーダーじゃなかったら何もしない
+        if (!lobyManager.mySelf.TeamUser.IsLeader) {
+            return;
+        }
+
+        int maxReadyUserAmount = lobyManager.TeamPlayerList.Count - 1;
+        int readyUserAmount = 0;
+
+        foreach (var user in lobyManager.TeamPlayerList) {
+            // リーダーは無視
+            if (user.Value.joinedData.TeamUser.IsLeader) {
+                continue;
+            }
+
+            // 準備完了状態だったら++
+            if (user.Value.joinedData.TeamUser.IsReady) {
+                readyUserAmount++;
+            }
+        }
+
+        Image btnImg = matchingBtn.GetComponent<Image>();
+        Text btnText = matchingBtn.GetComponentInChildren<Text>(true);
+
+        // リーダー以外が準備完了状態ならリーダーはマッチングボタンを押せる
+        if (maxReadyUserAmount == readyUserAmount) {
+            isStartMatching = true;
+
+            btnImg.color = new Color(1, 0.8f, 0);
+            btnText.text = "マッチング";
+        }
+        else {
+            isStartMatching = false;
+
+            btnImg.color = new Color(0.7f, 0.6f, 0.3f);
+            btnText.text = "チームメンバーの準備が完了していません";
+        }
     }
 
     /// <summary>
@@ -161,6 +243,9 @@ public class LobyUIManager : MonoBehaviour {
                 // ボタンのイベントを設定
                 Button inviteBtn = objUI.GetComponentInChildren<Button>(true);
 
+                // フレンド
+                var friend = lobyManager.LobyUserList.FirstOrDefault(userList => userList.Value.joinedData.UserData.Id == user.Id).Value;
+
                 // チームにそのプレイヤーがいたら
                 if (lobyManager.InTeamUser(user.Id)) {
                     // ボタンを削除
@@ -171,16 +256,27 @@ public class LobyUIManager : MonoBehaviour {
                     teamStatus.text = "チーム内";
                     teamStatus.color = Color.green;
                 }
+                // プレイ中だったら
+                else if(friend != null &&
+                        friend.joinedData.TeamUser.IsPlaying) {
+                    // ボタンを削除
+                    inviteBtn = objUI.GetComponentInChildren<Button>(true);
+                    Destroy(inviteBtn.gameObject);
+                    // テキストに表示
+                    Text teamStatus = objUI.GetComponentsInChildren<Text>(true).First(text => text.gameObject.name == "TeamStatusText");
+                    teamStatus.text = "プレイ中";
+                    teamStatus.color = Color.blue;
+                }
                 else {
                     inviteBtn.onClick.AddListener(async () => {
                         // チームに招待
-                        await RoomModel.Instance.InviteTeamFriendAsync(connectionId, lobyManager.MyTeamId);
+                        await RoomModel.Instance.InviteTeamFriendAsync(connectionId);
                         Destroy(inviteBtn.gameObject);
 
                         // テキストに表示
                         Text teamStatus = objUI.GetComponentsInChildren<Text>(true).First(text => text.gameObject.name == "TeamStatusText");
                         teamStatus.text = "招待中";
-                        teamStatus.color = Color.blue;
+                        teamStatus.color = Color.cyan;
                     });
                 }
             }
@@ -339,6 +435,12 @@ public class LobyUIManager : MonoBehaviour {
         if (lobyManager.mySelf.ConnectionId == connectionId) {
             return;
         }
+
+        // TeamUserのIsReadyを変更
+        lobyManager.ChangeTeamUserDataIsReady(connectionId, IsReady);
+
+        // マッチングボタンを押せるか判定
+        IsOnClickMatchingBtn();
 
         // ステータステキストを設定
         string statusText;

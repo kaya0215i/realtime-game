@@ -31,6 +31,9 @@ public class NetworkObject : MonoBehaviour {
     // このオブジェクトの親Transformの名前
     [SerializeField] public string parentTransformName;
 
+    // Transform情報を送る間隔
+    private const float SEND_TRANSFORM_INTERVAL = 0.1f;
+
     // 更新タイプの列挙型
     public enum UpdateObjectTypes {
         None = 0,
@@ -110,7 +113,7 @@ public class NetworkObject : MonoBehaviour {
 
         updateTransformTime += Time.deltaTime;
 
-        if (updateTransformTime >= 0.1f) {
+        if (updateTransformTime >= SEND_TRANSFORM_INTERVAL) {
             updateTransformTime = 0;
             await RoomModel.Instance.UpdateObjectTransformAsync(myObjectId, this.gameObject.transform.position, this.gameObject.transform.rotation);
         }
@@ -134,7 +137,6 @@ public class NetworkObject : MonoBehaviour {
     /// <summary>
     /// 作成者かどうか
     /// </summary>
-    /// <returns></returns>
     public bool IsCreater() {
         if (!GameManager.isJoined ||
             !isCreater) {
@@ -146,8 +148,7 @@ public class NetworkObject : MonoBehaviour {
 
     /// <summary>
     /// オブジェクトをインタラクト可能であればする
-    /// </summary>
-    /// <returns></returns>
+    /// </summary>v
     public async UniTask<bool> InteractObject() {
         if(RoomModel.Instance == null ||
            !GameManager.isJoined) {

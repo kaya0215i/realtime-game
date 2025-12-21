@@ -21,6 +21,32 @@ namespace realtime_game.Server.StreamingHubs {
         }
 
         /// <summary>
+        /// 切断時の処理
+        /// </summary>
+        protected override ValueTask OnDisconnected() {
+            foreach (var item in this._roomContextRepository.GetAllContext()) {
+                this._roomContext = item.Value;
+                
+                // そのルームにこのユーザーがいなかったら次のループへ
+                if(!this._roomContext.RoomUserDataList.ContainsKey(this.ConnectionId)) {
+                    continue;
+                }
+
+                if (item.Key == "Loby") {
+                    // ロビーから退室しチームを抜ける
+                    LeaveTeamAsync();
+                    LeaveLobyAsync();
+                }
+                else {
+                    // ルームから退室
+                    LeaveRoomAsync(item.Key);
+                }
+            }
+
+            return CompletedTask;
+        }
+
+        /// <summary>
         /// コンテキストを取得
         /// </summary>
         private void GetContext(string roomName) {
@@ -32,119 +58,13 @@ namespace realtime_game.Server.StreamingHubs {
             }
         }
 
-        /// <summary>
-        /// ルームに接続
-        /// </summary>
-        public async Task<JoinedUser[]> JoinRoomAsync(string roomName, int userId) {
-            // 同時に生成しない用に排他制御
-            lock (_roomContextRepository) {
-                // 指定の名前のルームがあるかどうかを確認
-                this._roomContext = _roomContextRepository.GetContext(roomName);
-                if (this._roomContext == null) {
-                    // なかったら生成
 
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    Console.Write("CreateRoom : ");
-                    Console.ForegroundColor = ConsoleColor.White;
-                    Console.WriteLine(roomName);
+        /*
+         * 
+         * ロビー
+         * 
+         */
 
-                    this._roomContext = _roomContextRepository.CreateContext(roomName);
-                }
-            }
-
-            // ルームに参加 ＆ ルームを保持
-            this._roomContext.Group.Add(this.ConnectionId, Client);
-
-            // DBからユーザー情報取得
-            User user = await _dbContext.Users.FirstAsync(user => user.Id == userId);
-
-            // 入室済みユーザーのデータを作成
-            var joinedUser = new JoinedUser();
-            joinedUser.ConnectionId = this.ConnectionId;
-            joinedUser.UserData = user;
-
-            // 同時に作成しない用に排他制御
-            lock (_roomContext) {
-                joinedUser.JoinOrder = this._roomContext.RoomUserDataList.Count + 1;
-
-                // ルーム内に同じユーザーIDの人がいたら
-                foreach(var roomUser in _roomContext.RoomUserDataList.Values) {
-                    if (roomUser.JoinedUser.UserData.Id == userId) {
-                        // ルーム内のメンバーから自分を削除
-                        this._roomContext.Group.Remove(this.ConnectionId);
-                        JoinedUser[] nonUser = Array.Empty<JoinedUser>();
-                        return nonUser;
-                    }
-                }
-
-                // ルームコンテキストにユーザー情報を登録
-                var roomUserData = new RoomUserData() { JoinedUser = joinedUser };
-                this._roomContext.RoomUserDataList[this.ConnectionId] = roomUserData;
-
-                Console.ForegroundColor = ConsoleColor.Blue;
-                Console.Write("JoinRoom : ");
-                Console.ForegroundColor = ConsoleColor.White;
-                Console.WriteLine(roomName +
-                    ", ID : " + roomUserData.JoinedUser.UserData.Id +
-                    ", Player : " + roomUserData.JoinedUser.UserData.Display_Name +
-                    ", ConnectionID : " + roomUserData.JoinedUser.ConnectionId +
-                    ", JoinOrder : " + roomUserData.JoinedUser.JoinOrder);
-            }
-
-            // 自分以外のルーム参加者全員に、ユーザーの入室通知を送信
-            this._roomContext.Group.Except([this.ConnectionId]).OnJoinRoom(joinedUser);
-
-            // 入室リクエストをしたユーザーに、参加者の情報をリストで返す
-            return this._roomContext.RoomUserDataList.Select(
-                f => f.Value.JoinedUser).ToArray();
-        }
-
-        /// <summary>
-        /// 退出処理
-        /// </summary>
-        public Task LeaveRoomAsync(string roomName) {
-            // コンテキストを取得
-            GetContext(roomName);
-
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.Write("LeaveRoom : ");
-            Console.ForegroundColor = ConsoleColor.White;
-            Console.WriteLine(_roomContext.Name +
-                ", ID : " + _roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.UserData.Id +
-                ", Player : " + _roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.UserData.Display_Name +
-                ", ConnectionID : " + this.ConnectionId +
-                ", JoinOrder : " + _roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.JoinOrder);
-
-            // 退出したことを全メンバーに通知
-            int LeaveJoinOrder = _roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.JoinOrder;
-            this._roomContext.Group.All.OnLeaveRoom(this.ConnectionId, LeaveJoinOrder);
-
-            // ルーム内のメンバーから自分を削除
-            this._roomContext.Group.Remove(this.ConnectionId);
-
-            // 参加順番を繰り下げ
-            foreach (RoomUserData roomUserData in _roomContext.RoomUserDataList.Values) {
-                if (roomUserData.JoinedUser.JoinOrder > LeaveJoinOrder) {
-                    roomUserData.JoinedUser.JoinOrder -= 1;
-                }
-            }
-
-            // ルームデータから退出したユーザーを削除
-            this._roomContext.RoomUserDataList.Remove(this.ConnectionId);
-
-            // ルーム内にユーザーが一人もいなかったらルームを削除
-            if (this._roomContext.RoomUserDataList.Count == 0) {
-
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.Write("DeleteRoom : ");
-                Console.ForegroundColor = ConsoleColor.White;
-                Console.WriteLine(_roomContext.Name);
-
-                _roomContextRepository.RemoveContext(_roomContext.Name);
-            }
-
-            return Task.CompletedTask;
-        }
 
         /// <summary>
         /// ロビールームの入室
@@ -158,10 +78,20 @@ namespace realtime_game.Server.StreamingHubs {
                     // なかったら生成
 
                     Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine("CreateLoby");
+                    Console.WriteLine("[CreateLoby]\n");
                     Console.ForegroundColor = ConsoleColor.White;
 
                     this._roomContext = _roomContextRepository.CreateContext("Loby");
+                }
+            }
+
+            // 同じユーザーを入れない用に排他制御
+            lock (_roomContext) {
+                // ルーム内に同じユーザーIDの人がいたら
+                foreach (var roomUser in _roomContext.RoomUserDataList.Values) {
+                    if (roomUser.JoinedUser.UserData.Id == userId) {
+                        throw new ReturnStatusException(Grpc.Core.StatusCode.AlreadyExists, "Cant Join Romm.");
+                    }
                 }
             }
 
@@ -172,44 +102,34 @@ namespace realtime_game.Server.StreamingHubs {
             User user = await _dbContext.Users.FirstAsync(user => user.Id == userId);
 
             // 入室済みユーザーのデータを作成
-            var joinedUser = new JoinedUser();
+            var teamUser = new TeamUser();
+            teamUser.IsLeader = false;
+            teamUser.IsReady = false;
+            teamUser.IsPlaying = false;
+
+            var joinedUser = new JoinedUser() { TeamUser = teamUser };
             joinedUser.ConnectionId = this.ConnectionId;
             joinedUser.UserData = user;
+            joinedUser.JoinOrder = this._roomContext.RoomUserDataList.Count + 1;
 
-            // 同時に作成しない用に排他制御
-            lock (_roomContext) {
-                joinedUser.JoinOrder = this._roomContext.RoomUserDataList.Count + 1;
+            // ルームコンテキストにユーザー情報を登録
+            var roomUserData = new RoomUserData() { JoinedUser = joinedUser };
+            this._roomContext.RoomUserDataList[this.ConnectionId] = roomUserData;
 
-                // ルーム内に同じユーザーIDの人がいたら
-                foreach (var item in _roomContext.RoomUserDataList.Values) {
-                    if (item.JoinedUser.UserData.Id == userId) {
-                        // ルーム内のメンバーから自分を削除
-                        this._roomContext.Group.Remove(this.ConnectionId);
-                        JoinedUser[] nonUser = Array.Empty<JoinedUser>();
-                        return nonUser;
-                    }
-                }
-
-                // ルームコンテキストにユーザー情報を登録
-                var roomUserData = new RoomUserData() { JoinedUser = joinedUser };
-                this._roomContext.RoomUserDataList[this.ConnectionId] = roomUserData;
-
-                Console.ForegroundColor = ConsoleColor.Blue;
-                Console.Write("JoinLoby : ");
-                Console.ForegroundColor = ConsoleColor.White;
-                Console.WriteLine(
-                    "ID : " + roomUserData.JoinedUser.UserData.Id +
-                    ", Player : " + roomUserData.JoinedUser.UserData.Display_Name +
-                    ", ConnectionID : " + roomUserData.JoinedUser.ConnectionId +
-                    ", JoinOrder : " + roomUserData.JoinedUser.JoinOrder);
-            }
+            Console.ForegroundColor = ConsoleColor.Blue;
+            Console.WriteLine("[JoinLoby]");
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine(
+                $"ID : {roomUserData.JoinedUser.UserData.Id}\n" +
+                $"Player : {roomUserData.JoinedUser.UserData.Display_Name}\n" +
+                $"ConnectionID : {roomUserData.JoinedUser.ConnectionId}\n" +
+                $"JoinOrder : {roomUserData.JoinedUser.JoinOrder}\n");
 
             // 自分以外のルーム参加者全員に、ユーザーの入室通知を送信
             this._roomContext.Group.Except([this.ConnectionId]).OnJoinLoby(joinedUser);
 
             // 入室リクエストをしたユーザーに、参加者の情報をリストで返す
-            return this._roomContext.RoomUserDataList.Select(
-                f => f.Value.JoinedUser).ToArray();
+            return this._roomContext.RoomUserDataList.Select(f => f.Value.JoinedUser).ToArray();
         }
 
         /// <summary>
@@ -220,13 +140,13 @@ namespace realtime_game.Server.StreamingHubs {
             GetContext("Loby");
 
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.Write("LeaveLoby : ");
+            Console.WriteLine("[LeaveLoby]");
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine(
-                "ID : " + _roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.UserData.Id +
-                ", Player : " + _roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.UserData.Display_Name +
-                ", ConnectionID : " + this.ConnectionId +
-                ", JoinOrder : " + _roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.JoinOrder);
+                    $"ID : {_roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.UserData.Id}\n" +
+                    $"Player : {_roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.UserData.Display_Name}\n" +
+                    $"ConnectionID : {this.ConnectionId}\n" +
+                    $"JoinOrder : {_roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.JoinOrder}\n");
 
             // 退出したことを全メンバーに通知
             int LeaveJoinOrder = _roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.JoinOrder;
@@ -249,7 +169,7 @@ namespace realtime_game.Server.StreamingHubs {
             if (this._roomContext.RoomUserDataList.Count == 0) {
 
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("DeleteLoby");
+                Console.WriteLine("[DeleteLoby]\n");
                 Console.ForegroundColor = ConsoleColor.White;
 
                 _roomContextRepository.RemoveContext(_roomContext.Name);
@@ -259,24 +179,32 @@ namespace realtime_game.Server.StreamingHubs {
         }
 
         /// <summary>
-        /// 切断時の処理
+        /// ロビーに帰ってきたとき
         /// </summary>
-        protected override ValueTask OnDisconnected() {
-            foreach (var item in this._roomContextRepository.GetAllContext()) {
-                this._roomContext = item.Value;
+        public async Task ReturnLobyRoomAsync() {
+            // コンテキストを取得
+            GetContext("Loby");
 
-                if (item.Key == "Loby") {
-                    // ロビーから退室しチームを抜ける
-                    LeaveTeamAsync();
-                    LeaveLobyAsync();
-                }
-                else {
-                    // ルームから退室
-                    LeaveRoomAsync(item.Key);
-                }
+            lock (_roomContext) {
+                // チームメンバー取得
+                var teamMember = this._roomContext.TeamUserDataList.FirstOrDefault(tm => tm.Value.ContainsKey(this.ConnectionId));
+
+                teamMember.Value[this.ConnectionId].JoinedUser.TeamUser.IsPlaying = false;
+
+                // 自分以外のルーム参加者全員に、ロビーに帰ったことを通知
+                this._roomContext.Group.Except([this.ConnectionId]).OnReturnedLobyRoom(this.ConnectionId);
             }
+        }
 
-            return CompletedTask;
+        /// <summary>
+        /// ロビーユーザー情報を取得
+        /// </summary>
+        public async Task<JoinedUser[]> GetLobyUsersAsync() {
+            // コンテキストを取得
+            GetContext("Loby");
+
+            // ロビーユーザー情報を取得し返す
+            return this._roomContext.RoomUserDataList.Select(f => f.Value.JoinedUser).ToArray();
         }
 
         /// <summary>
@@ -295,19 +223,26 @@ namespace realtime_game.Server.StreamingHubs {
             // チーム作成
             Guid teamId = Guid.NewGuid();
 
+            // チームユーザーデータにデータを追加
             Dictionary<Guid, RoomUserData> addUserData = new Dictionary<Guid, RoomUserData>();
             addUserData[this.ConnectionId] = this._roomContext.RoomUserDataList[this.ConnectionId];
+            addUserData[this.ConnectionId].JoinedUser.TeamUser.IsLeader = true;
 
             this._roomContext.TeamUserDataList[teamId] = addUserData;
 
             Console.ForegroundColor = ConsoleColor.Green;
-            Console.Write("[CreateTeam] : ");
+            Console.WriteLine("<CreateTeam>");
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine(teamId + "\n");
+
+            Console.ForegroundColor = ConsoleColor.Blue;
+            Console.WriteLine("<JoinTeam>");
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine(
-                "TeamID : " + teamId +
-                ", ID : " + this._roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.UserData.Id +
-                ", Player : " + this._roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.UserData.Display_Name +
-                ", ConnectionID : " + this.ConnectionId);
+                   $"TeamID : {teamId}\n" +
+                   $"ID : {this._roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.UserData.Id}\n" +
+                   $"Player : {this._roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.UserData.Display_Name}\n" +
+                   $"ConnectionID : {this.ConnectionId}\n");
 
             return teamId;
         }
@@ -341,13 +276,14 @@ namespace realtime_game.Server.StreamingHubs {
             }
 
             Console.ForegroundColor = ConsoleColor.Blue;
-            Console.Write("[JoinTeam] : ");
+            Console.WriteLine("<JoinTeam>");
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine(
-                "TeamID : " + targetTeamId +
-                ", ID : " + this._roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.UserData.Id +
-                ", Player : " + this._roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.UserData.Display_Name +
-                ", ConnectionID : " + this._roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.ConnectionId);
+                   $"TeamID : {targetTeamId}\n" +
+                   $"ID : {this._roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.UserData.Id}\n" +
+                   $"Player : {this._roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.UserData.Display_Name}\n" +
+                   $"ConnectionID : {this.ConnectionId}\n" +
+                   $"IsLeader : {this._roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.TeamUser.IsLeader}\n");
 
             // チームに参加リクエストをしたユーザーに、参加者の情報をリストで返す
             return this._roomContext.TeamUserDataList[targetTeamId].Select( _ => _.Value.JoinedUser).ToArray();
@@ -367,13 +303,19 @@ namespace realtime_game.Server.StreamingHubs {
             }
 
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.Write("[LeaveTeam] : ");
+            Console.WriteLine("<LeaveTeam>");
             Console.ForegroundColor = ConsoleColor.White;
             Console.WriteLine(
-                "TeamID : " + findTeam.Key +
-                ", ID : " + this._roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.UserData.Id +
-                ", Player : " + this._roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.UserData.Display_Name +
-                ", ConnectionID : " + this.ConnectionId);
+                   $"TeamID : {findTeam.Key}\n" +
+                   $"ID : {this._roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.UserData.Id}\n" +
+                   $"Player : {this._roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.UserData.Display_Name}\n" +
+                   $"ConnectionID : {this.ConnectionId}\n" +
+                   $"IsLeader : {this._roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.TeamUser.IsLeader}\n");
+
+            // チームを抜けるのでリーダーじゃない
+            findTeam.Value[this.ConnectionId].JoinedUser.TeamUser.IsLeader = false;
+            // おなじく準備完了ではない
+            findTeam.Value[this.ConnectionId].JoinedUser.TeamUser.IsReady = false;
 
             // チームから自分を削除
             findTeam.Value.Remove(this.ConnectionId);
@@ -386,9 +328,9 @@ namespace realtime_game.Server.StreamingHubs {
             }
             else {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.Write("[DeleteTeam] : ");
+                Console.WriteLine("<DeleteTeam>");
                 Console.ForegroundColor = ConsoleColor.White;
-                Console.WriteLine(findTeam.Key);
+                Console.WriteLine(findTeam.Key + "\n");
 
                 // プレイヤーがいないのでチームを削除
                 this._roomContext.TeamUserDataList.Remove(findTeam.Key);
@@ -397,6 +339,32 @@ namespace realtime_game.Server.StreamingHubs {
             return Task.CompletedTask;
         }
         
+        /// <summary>
+        /// チームに入っているか
+        /// </summary>
+        public async Task<bool> IsAlreadyInTeamAsync() {
+            // コンテキストを取得
+            GetContext("Loby");
+
+            // チームに入っていたら
+            if (this._roomContext.TeamUserDataList.Any(tm => tm.Value.ContainsKey(this.ConnectionId))) {
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// チームメンバー情報を取得
+        /// </summary>
+        public async Task<JoinedUser[]> GetTeamUsersAsync() {
+            // コンテキストを取得
+            GetContext("Loby");
+
+            // チームメンバーを取得し返す
+            return this._roomContext.TeamUserDataList.FirstOrDefault(tm => tm.Value.ContainsKey(this.ConnectionId)).Value.Values.Select(user => user.JoinedUser).ToArray();
+        }
+
         /// <summary>
         /// チームにフレンドを招待
         /// </summary>
@@ -422,6 +390,9 @@ namespace realtime_game.Server.StreamingHubs {
 
             // チームメンバー取得
             var teamMember = this._roomContext.TeamUserDataList.FirstOrDefault(tm => tm.Value.ContainsKey(this.ConnectionId));
+
+            // 準備状態を更新
+            teamMember.Value[this.ConnectionId].JoinedUser.TeamUser.IsReady = isReady;
 
             // チームメンバーに準備完了状態を通知
             this._roomContext.Group.Only(teamMember.Value.Keys).OnIsReadyStatus(this.ConnectionId, isReady);
@@ -460,6 +431,15 @@ namespace realtime_game.Server.StreamingHubs {
 
             // チームメンバーにマッチング通知を送信
             this._roomContext.Group.Only(teamMember.Value.Keys).OnMatchingRoom(roomName);
+
+            // 自分以外のルーム参加者全員に、ゲームシーンに移動したことを通知
+            this._roomContext.Group.Except([this.ConnectionId]).OnGoGameRoom(this.ConnectionId);
+
+            // 準備状態解除
+            foreach (var user in teamMember.Value.Values) {
+                user.JoinedUser.TeamUser.IsReady = false;
+                user.JoinedUser.TeamUser.IsPlaying = true;
+            }
         }
 
         /// <summary>
@@ -467,6 +447,215 @@ namespace realtime_game.Server.StreamingHubs {
         /// </summary>
         public Task<Guid> GetConnectionId() {
             return Task.FromResult<Guid>(this.ConnectionId);
+        }
+
+
+        /*
+         * 
+         * インゲーム
+         * 
+         */
+
+
+        /// <summary>
+        /// ルームに接続
+        /// </summary>
+        public async Task<JoinedUser[]> JoinRoomAsync(string roomName, int userId) {
+            // 同時に生成しない用に排他制御
+            lock (_roomContextRepository) {
+                // 指定の名前のルームがあるかどうかを確認
+                this._roomContext = _roomContextRepository.GetContext(roomName);
+                if (this._roomContext == null) {
+                    // なかったら生成
+
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine("{CreateRoom}");
+                    Console.ForegroundColor = ConsoleColor.White;
+                    Console.WriteLine("RoomName : " + roomName + "\n");
+
+                    this._roomContext = _roomContextRepository.CreateContext(roomName);
+                }
+            }
+
+            // 同じユーザーを入れない用に排他制御
+            lock (_roomContext) {
+                // ルーム内に同じユーザーIDの人がいたら
+                foreach (var roomUser in _roomContext.RoomUserDataList.Values) {
+                    if (roomUser.JoinedUser.UserData.Id == userId) {
+                        throw new ReturnStatusException(Grpc.Core.StatusCode.AlreadyExists, "Cant Join Romm.");
+                    }
+                }
+            }
+
+            // ルームに参加 ＆ ルームを保持
+            this._roomContext.Group.Add(this.ConnectionId, Client);
+
+            // DBからユーザー情報取得
+            User user = await _dbContext.Users.FirstAsync(user => user.Id == userId);
+
+            // 入室済みユーザーのデータを作成
+            var joinedUser = new JoinedUser();
+            joinedUser.ConnectionId = this.ConnectionId;
+            joinedUser.UserData = user;
+            joinedUser.JoinOrder = this._roomContext.RoomUserDataList.Count + 1;
+
+            // ルームコンテキストにユーザー情報を登録
+            var roomUserData = new RoomUserData() { JoinedUser = joinedUser };
+            this._roomContext.RoomUserDataList[this.ConnectionId] = roomUserData;
+
+            Console.ForegroundColor = ConsoleColor.Blue;
+            Console.WriteLine("{JoinRoom}");
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine($"RoomName : {roomName}\n" +
+                $"ID : {roomUserData.JoinedUser.UserData.Id}\n" +
+                $"Player : {roomUserData.JoinedUser.UserData.Display_Name}\n" +
+                $"ConnectionID : {roomUserData.JoinedUser.ConnectionId}\n" +
+                $"JoinOrder : {roomUserData.JoinedUser.JoinOrder}\n");
+
+
+            // 自分以外のルーム参加者全員に、ユーザーの入室通知を送信
+            this._roomContext.Group.Except([this.ConnectionId]).OnJoinRoom(joinedUser);
+
+            // 入室リクエストをしたユーザーに、参加者の情報をリストで返す
+            return this._roomContext.RoomUserDataList.Select(
+                f => f.Value.JoinedUser).ToArray();
+        }
+
+        /// <summary>
+        /// 退出処理
+        /// </summary>
+        public Task LeaveRoomAsync(string roomName) {
+            // コンテキストを取得
+            GetContext(roomName);
+
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine("{LeaveRoom}");
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine($"RoomName : {_roomContext.Name}\n" +
+                    $"ID : {_roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.UserData.Id}\n" +
+                    $"Player : {_roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.UserData.Display_Name}\n" +
+                    $"ConnectionID : {this.ConnectionId}\n" +
+                    $"JoinOrder : {_roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.JoinOrder}\n");
+
+            // 退出したことを全メンバーに通知
+            int LeaveJoinOrder = _roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.JoinOrder;
+            this._roomContext.Group.All.OnLeaveRoom(this.ConnectionId, LeaveJoinOrder);
+
+            // ルーム内のメンバーから自分を削除
+            this._roomContext.Group.Remove(this.ConnectionId);
+
+            // 参加順番を繰り下げ
+            foreach (RoomUserData roomUserData in _roomContext.RoomUserDataList.Values) {
+                if (roomUserData.JoinedUser.JoinOrder > LeaveJoinOrder) {
+                    roomUserData.JoinedUser.JoinOrder -= 1;
+                }
+            }
+
+            // ルームデータから退出したユーザーを削除
+            this._roomContext.RoomUserDataList.Remove(this.ConnectionId);
+
+            // ルーム内にユーザーが一人もいなかったらルームを削除
+            if (this._roomContext.RoomUserDataList.Count == 0) {
+
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("{DeleteRoom}");
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine("RoomName : " + _roomContext.Name + "\n");
+
+                _roomContextRepository.RemoveContext(_roomContext.Name);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// 現在のインゲームの情報を取得
+        /// </summary>
+        public Task<InGameData> GetInGameDataAsync() {
+            return Task.FromResult<InGameData>(this._roomContext.InGameData);
+        }
+
+        /// <summary>
+        /// ゲームスタート
+        /// </summary>
+        public Task GameStartAsync() {
+            this._roomContext.InGameData.isGameStart = true;
+            this._roomContext.InGameData.gameTime = 300;
+            this._roomContext.InGameData.gameTimer = this._roomContext.InGameData.gameTime;
+
+            // ゲームスタート通知
+            this._roomContext.Group.All.OnGameStart();
+
+
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// ゲーム終了
+        /// </summary>
+        public Task GameEndAsync() {
+            this._roomContext.InGameData.isGameStart = false;
+
+            // ゲーム終了通知
+            this._roomContext.Group.All.OnGameEnd();
+
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// ゲームタイマー更新
+        /// </summary>
+        public Task UpdateGameTimerAsync(float deltaTime) {
+            this._roomContext.InGameData.gameTimer -= deltaTime;
+
+            // ゲームタイマー更新通知
+            this._roomContext.Group.All.OnUpdateGameTimer(this._roomContext.InGameData.gameTimer);
+
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// キャラクタータイプ変更
+        /// </summary>
+        public Task ChangeCharacterTypeAsync(int typeNum) {
+            this._roomContext.RoomUserDataList[this.ConnectionId].characterTypeNum = typeNum;
+
+            // キャラクタータイプ変更を自分以外に通知
+            this._roomContext.Group.Except([this.ConnectionId]).OnChangeCharacterType(this.ConnectionId, typeNum);
+
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// プレイヤーのリスポーン
+        /// </summary>
+        public Task ReSpownPlayerAsync() {
+            // 自分以外に通知
+            this._roomContext.Group.Except([this.ConnectionId]).OnReSpownPlayer(this.ConnectionId);
+
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// プレイヤー死亡
+        /// </summary>
+        public Task DeathPlayerAsync(Guid killedPlayerConnectionId) {
+            // 自分以外に通知
+            this._roomContext.Group.Except([this.ConnectionId]).OnDeathPlayer(this.ConnectionId, killedPlayerConnectionId);
+
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// プレイヤーのヒットパーセント
+        /// </summary>
+        public Task HitPercentAsync(float value) {
+            this._roomContext.RoomUserDataList[this.ConnectionId].hitPercent = value;
+
+            // ヒットパーセントを自分以外に通知
+            this._roomContext.Group.Except([this.ConnectionId]).OnHitPercent(this.ConnectionId, value);
+
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -488,10 +677,6 @@ namespace realtime_game.Server.StreamingHubs {
         /// オブジェクトの作成
         /// </summary>
         public async Task<Guid> CreateObjectAsync(int objectDataId, Vector3 pos, Quaternion rotate, int updateTypeNum) {
-            if(this._roomContext == null) {
-                return Guid.Empty;
-            }
-
             // ルームコンテキストにオブジェクト情報を登録
             Guid objectId = Guid.NewGuid();
 

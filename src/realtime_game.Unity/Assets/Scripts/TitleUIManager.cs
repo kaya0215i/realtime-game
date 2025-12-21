@@ -88,11 +88,17 @@ public class TitleUIManager : MonoBehaviour {
     /// ログインボタン
     /// </summary>
     public async void OnClickLogin() {
+        // ロード画像の表示
+        IsLoading(true);
+
         // 空かどうかチェック
         if (loginIdInputField.text == "" ||
            loginPasswordInputField.text == "") {
             errorText.text = "ログインID、パスワードが空白です。";
             Debug.Log("ログインID、パスワードが空白です。");
+
+            // ロード画像の非表示
+            IsLoading(false);
             return;
         }
 
@@ -103,12 +109,20 @@ public class TitleUIManager : MonoBehaviour {
             // ユーザー情報保存
             saveManager.SaveData(loginIdInputField.text, UserModel.Instance.HashPassword(loginPasswordInputField.text), autoLoginToggle.isOn);
 
+            // ロード画像の非表示
+            IsLoading(false);
+
+            // ロビーシーンに移動
             SceneManager.LoadScene("LobyScene");
             return;
         }
         else {
             errorText.text = "ログインID、パスワードが間違っています。";
             Debug.Log("ログインID、パスワードが間違っています。");
+
+            // ロード画像の非表示
+            IsLoading(false);
+            return;
         }
     }
 
@@ -116,14 +130,19 @@ public class TitleUIManager : MonoBehaviour {
     /// ユーザー登録ボタン
     /// </summary>
     public async void OnClickRegister() {
+        // ロード画像の表示
+        IsLoading(true);
+
         // 空かどうかチェック
-        if(registerIdInputField.text == "" ||
+        if (registerIdInputField.text == "" ||
            registerPasswordInputField.text == "" ||
            registerConfirmPasswordInputField.text == "" ||
            displayNameInputField.text == "") {
             errorText.text = "ログインID、パスワード、ゲーム内の名前を空白にすることは出来ません。";
             Debug.Log("ログインID、パスワード、ゲーム内の名前を空白にすることは出来ません。");
 
+            // ロード画像の非表示
+            IsLoading(false);
             return;
         }
 
@@ -132,6 +151,8 @@ public class TitleUIManager : MonoBehaviour {
             errorText.text = "パスワードは8文字以上で入力してください。";
             Debug.Log("パスワードは8文字以上で入力してください。");
 
+            // ロード画像の非表示
+            IsLoading(false);
             return;
         }
 
@@ -140,6 +161,8 @@ public class TitleUIManager : MonoBehaviour {
             errorText.text = "確認用パスワードが正しくありません。";
             Debug.Log("確認用パスワードが正しくありません。");
 
+            // ロード画像の非表示
+            IsLoading(false);
             return;
         }
 
@@ -147,12 +170,21 @@ public class TitleUIManager : MonoBehaviour {
 
         if(result) {
             Debug.Log("ユーザー登録成功");
+
+            // ロード画像の非表示
+            IsLoading(false);
+
+            // ロビーシーンに移動
             SceneManager.LoadScene("LobyScene");
             return;
         }
         else {
             errorText.text = "ログインIDが他のユーザーと被っているため登録できませんでした。";
             Debug.Log("ログインIDが他のユーザーと被っているため登録できませんでした。");
+
+            // ロード画像の非表示
+            IsLoading(false);
+            return;
         }
     }
 }

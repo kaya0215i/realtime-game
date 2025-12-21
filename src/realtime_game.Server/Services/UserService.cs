@@ -12,6 +12,9 @@ namespace realtime_game.Server.Services {
     public class UserService: ServiceBase<IUserService>, IUserService {
         private readonly GameDbContext _context;
 
+        // 排他制御用
+        private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
+
         // DI
         public UserService(GameDbContext context) {
             _context = context;
@@ -21,23 +24,30 @@ namespace realtime_game.Server.Services {
         /// ユーザーを登録するAPI
         /// </summary>
         public async UnaryResult<int> RegistUserAsync(string loginId, string hashedPassword, string displayName) {
-            // バリデーションチェック(名前登録済みかどうか)
-            if(await _context.Users.AnyAsync(u => u.Login_Id == loginId)) {
-               throw new ReturnStatusException(Grpc.Core.StatusCode.InvalidArgument, "");
+            await _semaphore.WaitAsync(); // 入室
+
+            try {
+                // バリデーションチェック(ログインID登録済みかどうか)
+                if (await _context.Users.AnyAsync(u => u.Login_Id == loginId)) {
+                    throw new ReturnStatusException(Grpc.Core.StatusCode.InvalidArgument, "");
+                }
+
+                // テーブルにレコードを追加
+                User user = new User();
+                user.Login_Id = loginId;
+                user.Password = hashedPassword;
+                user.Display_Name = displayName;
+                user.Created_at = DateTime.Now;
+                user.Updated_at = DateTime.Now;
+                _context.Users.Add(user);
+
+                await _context.SaveChangesAsync();
+
+                return user.Id;
             }
-
-            // テーブルにレコードを追加
-            User user = new User();
-            user.Login_Id = loginId;
-            user.Password = hashedPassword;
-            user.Display_Name = displayName;
-            user.Created_at = DateTime.Now;
-            user.Updated_at = DateTime.Now;
-            _context.Users.Add(user);
-            
-            await _context.SaveChangesAsync();
-
-            return user.Id;
+            finally {
+                _semaphore.Release(); // 退室
+            }
         }
 
         /// <summary>

@@ -18,6 +18,8 @@ namespace realtime_game.Server.StreamingHubs {
         public Dictionary<Guid, Dictionary<Guid, RoomUserData>> TeamUserDataList { get; } =
             new Dictionary<Guid, Dictionary<Guid, RoomUserData>>(); // チームとユーザーデータ一覧
 
+        public InGameData InGameData { get; } = new InGameData(); // ゲームの進行状況のデータ
+
         public Dictionary<Guid, RoomObjectData> RoomObjectDataList { get; } =
             new Dictionary<Guid, RoomObjectData>(); // オブジェクトデータ一覧
 

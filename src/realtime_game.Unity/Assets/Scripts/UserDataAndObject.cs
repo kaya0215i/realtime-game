@@ -1,7 +1,7 @@
 using realtime_game.Shared.Interfaces.StreamingHubs;
 using UnityEngine;
 
-public class LobyUserData {
-    public JoinedUser joinedData;
+public class UserDataAndObject {
+    public JoinedUser joinedData = new JoinedUser();
     public GameObject playerObject;
 }

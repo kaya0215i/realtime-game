@@ -1,16 +1,11 @@
 using Cysharp.Threading.Tasks;
-using DG.Tweening.Core.Easing;
-using NUnit.Framework.Interfaces;
 using System;
-using System.Buffers;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using Unity.Cinemachine;
-using Unity.Services.Matchmaker.Models;
+using Unity.Multiplayer.Center.NetcodeForGameObjectsExample.DistributedAuthority;
 using UnityEngine;
-using UnityEngine.UIElements;
 using static PlayerManager;
 
 public class PlayerController : MonoBehaviour {
@@ -18,6 +13,8 @@ public class PlayerController : MonoBehaviour {
     private Rigidbody myRb;
 
     private NetworkObject myInteractedObj;
+
+    [NonSerialized] private GameUIManager uiManager;
 
     // プレイヤーのTransform
     [SerializeField] public Transform _head;
@@ -66,53 +63,31 @@ public class PlayerController : MonoBehaviour {
     // 射撃間隔
     private float shotCoolTime;
     // 射撃間隔カウント用
-    private float shotCoolTimer;
+    private float shotCoolTimer = 0;
+
+    // ショットガンの同時に出る弾の数
+    private const int ShotGunShotBulletAmount = 5;
 
     // リロード時間
     private float reloadTime;
     // リロード時間カウント用
-    private float reloadTimer;
+    private float reloadTimer = 0;
     // リロード処理用CancellationTokenSource
-    CancellationTokenSource reloadCTS;
+    private CancellationTokenSource reloadCTS = new CancellationTokenSource();
     // リロードしているか
-    private bool isReloading;
-
-    private void Awake() {
-        shotCoolTimer = 0;
-        reloadTimer = 0;
-        isReloading = false;
-    }
+    private bool isReloading = false;
 
     private void Start() {
         playerManager = this.GetComponent<PlayerManager>();
         myRb = this.GetComponent<Rigidbody>();
         cinemachineFollow = cinemachineCamera.GetComponent<CinemachineFollow>();
         bulletParent = GameObject.Find("Bullets").GetComponent<Transform>();
-
-        reloadCTS = new CancellationTokenSource();
+        uiManager = GameObject.Find("UICanvas").GetComponent<GameUIManager>();
 
         SetPlayerCameraMode();
 
         // キャラクターのタイプをもとに設定
-        switch (playerManager.characterType) {
-            case PLAYER_CHARACTER_TYPE.AssaultRifle:
-                maxBulletAmount = 15;
-                shotCoolTime = 0.5f;
-                reloadTime = 2;
-                break;
-
-            case PLAYER_CHARACTER_TYPE.ShotGun:
-                maxBulletAmount = 5;
-                shotCoolTime = 1;
-                reloadTime = 0.5f;
-                break;
-
-            case PLAYER_CHARACTER_TYPE.SniperRifle:
-                maxBulletAmount = 5;
-                shotCoolTime = 1.5f;
-                reloadTime = 3;
-                break;
-        }
+        SetPlayerCharacterType();
 
         bulletAmount = maxBulletAmount;
     }
@@ -160,6 +135,37 @@ public class PlayerController : MonoBehaviour {
                 cinemachineFollow.FollowOffset = new Vector3(0, 0.7f, -2.5f);
                 break;
         }
+    }
+
+    /// <summary>
+    /// キャラクターのタイプをもとに設定
+    /// </summary>
+    public void SetPlayerCharacterType() {
+        switch (playerManager.characterType) {
+            case PLAYER_CHARACTER_TYPE.AssaultRifle:
+                maxBulletAmount = 15;
+                shotCoolTime = 0.5f;
+                reloadTime = 2;
+                break;
+
+            case PLAYER_CHARACTER_TYPE.ShotGun:
+                maxBulletAmount = 5;
+                shotCoolTime = 1;
+                reloadTime = 0.5f;
+                break;
+
+            case PLAYER_CHARACTER_TYPE.SniperRifle:
+                maxBulletAmount = 5;
+                shotCoolTime = 2f;
+                reloadTime = 3f;
+                break;
+        }
+
+        // 弾数を設定
+        bulletAmount = maxBulletAmount;
+
+        // 弾数をUIに反映
+        uiManager.UpdateBulletAmountText(bulletAmount, maxBulletAmount);
     }
 
     /// <summary>
@@ -232,7 +238,7 @@ public class PlayerController : MonoBehaviour {
         shotCoolTimer += Time.deltaTime;
         if (!isReloading) {
             // 射撃間隔をUIに反映
-            playerManager.uiManager.UpdateShotCoolTimeImage(1 * shotCoolTimer / shotCoolTime);
+            uiManager.UpdateShotCoolTimeImage(1 * shotCoolTimer / shotCoolTime);
         }
 
         // クールタイム経過してなかったらなにもしない
@@ -262,9 +268,6 @@ public class PlayerController : MonoBehaviour {
 
                     GameObject createdBullet = Instantiate(bulletList.First(_ => _.name == bulletName), Camera.main.transform.position + Camera.main.transform.forward, Quaternion.identity, bulletParent);
                     BulletController createdBulletController = createdBullet.GetComponent<BulletController>();
-
-                    // 弾数をUIに反映
-                    playerManager.uiManager.UpdateBulletAmountText(bulletAmount, maxBulletAmount);
                 }
 
                 break;
@@ -280,13 +283,10 @@ public class PlayerController : MonoBehaviour {
                     bulletAmount -= 1;
                     shotCoolTimer = 0;
 
-                    for (int i = 0; i < 5; i++) {
+                    for (int i = 0; i < ShotGunShotBulletAmount; i++) {
                         GameObject createdBullet = Instantiate(bulletList.First(_ => _.name == bulletName), Camera.main.transform.position + Camera.main.transform.forward, Quaternion.identity, bulletParent);
                         BulletController createdBulletController = createdBullet.GetComponent<BulletController>();
                     }
-
-                    // 弾数をUIに反映
-                    playerManager.uiManager.UpdateBulletAmountText(bulletAmount, maxBulletAmount);
                 }
 
                 break;
@@ -304,13 +304,13 @@ public class PlayerController : MonoBehaviour {
 
                     GameObject createdBullet = Instantiate(bulletList.First(_ => _.name == bulletName), Camera.main.transform.position + Camera.main.transform.forward, Quaternion.identity, bulletParent);
                     BulletController createdBulletController = createdBullet.GetComponent<BulletController>();
-
-                    // 弾数をUIに反映
-                    playerManager.uiManager.UpdateBulletAmountText(bulletAmount, maxBulletAmount);
                 }
 
                 break;
         }
+
+        // 弾数をUIに反映
+        uiManager.UpdateBulletAmountText(bulletAmount, maxBulletAmount);
     }
 
     /// <summary>
@@ -320,7 +320,7 @@ public class PlayerController : MonoBehaviour {
         // リロード中だったらなにもしない
         if (isReloading) {
             reloadTimer += Time.deltaTime;
-            playerManager.uiManager.UpdateShotCoolTimeImage(1 * reloadTimer / reloadTime);
+            uiManager.UpdateShotCoolTimeImage(1 * reloadTimer / reloadTime);
             return;
         }
 
@@ -331,8 +331,6 @@ public class PlayerController : MonoBehaviour {
                 case PLAYER_CHARACTER_TYPE.SniperRifle:
                     // リロード中
                     await ReloadingBullet();
-                    // 弾数をUIに反映
-                    playerManager.uiManager.UpdateBulletAmountText(bulletAmount, maxBulletAmount);
 
                     break;
 
@@ -340,12 +338,13 @@ public class PlayerController : MonoBehaviour {
                     while (bulletAmount < maxBulletAmount) {
                         // リロード中
                         await ReloadingBullet();
-                        // 弾数をUIに反映
-                        playerManager.uiManager.UpdateBulletAmountText(bulletAmount, maxBulletAmount);
                     }
 
                     break;
             }
+
+            // 弾数をUIに反映
+            uiManager.UpdateBulletAmountText(bulletAmount, maxBulletAmount);
         }
     }
 
@@ -355,7 +354,7 @@ public class PlayerController : MonoBehaviour {
     private async UniTask ReloadingBullet() {
         isReloading = true;
         reloadTimer = 0;
-        playerManager.uiManager.UpdateShotCoolTimeImage(0);
+        uiManager.UpdateShotCoolTimeImage(0);
 
         // リロード時間分待つ
         await UniTask.Delay(TimeSpan.FromSeconds(reloadTime), cancellationToken: reloadCTS.Token).SuppressCancellationThrow();

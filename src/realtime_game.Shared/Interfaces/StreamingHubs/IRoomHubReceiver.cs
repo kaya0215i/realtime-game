@@ -14,15 +14,13 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         // [クライアントに実装]
         // [サーバーから呼び出す]
 
-        /// <summary>
-        /// ユーザーの入室通知
-        /// </summary>
-        public void OnJoinRoom(JoinedUser user);
 
-        /// <summary>
-        /// ユーザーの退室通知
-        /// </summary>
-        public void OnLeaveRoom(Guid connectionId, int joinOrder);
+        /*
+         * 
+         * ロビー内の通知
+         * 
+         */
+
 
         /// <summary>
         /// ロビールームの入室通知
@@ -34,6 +32,7 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         /// </summary>
         public void OnLeaveLoby(Guid connectionId, int joinOrder);
 
+
         /// <summary>
         /// チームの参加通知
         /// </summary>
@@ -43,6 +42,7 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         /// チームの退出通知
         /// </summary>
         public void OnLeaveTeam(Guid connectionId);
+
 
         /// <summary>
         /// チームに招待通知
@@ -55,9 +55,75 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         public void OnIsReadyStatus(Guid connectionId, bool IsReady);
 
         /// <summary>
+        /// ロビーに帰ってきたとき通知
+        /// </summary>
+        public void OnReturnedLobyRoom(Guid connectionId);
+
+        /// <summary>
         /// マッチング通知
         /// </summary>
         public void OnMatchingRoom(string roomName);
+
+        /// <summary>
+        /// ゲームシーンに移動した通知
+        /// </summary>
+        public void OnGoGameRoom(Guid connectionId);
+
+
+        /*
+         * 
+         * インゲーム内の通知
+         * 
+         */
+
+
+        /// <summary>
+        /// ユーザーの入室通知
+        /// </summary>
+        public void OnJoinRoom(JoinedUser user);
+
+        /// <summary>
+        /// ユーザーの退室通知
+        /// </summary>
+        public void OnLeaveRoom(Guid connectionId, int joinOrder);
+
+
+        /// <summary>
+        /// ゲームスタート通知
+        /// </summary>
+        public void OnGameStart();
+
+        /// <summary>
+        /// ゲーム終了通知
+        /// </summary>
+        public void OnGameEnd();
+
+
+        /// <summary>
+        /// ゲームタイマーの更新通知
+        /// </summary>
+        public void OnUpdateGameTimer(float timer);
+
+
+        /// <summary>
+        /// キャラクタータイプ変更通知
+        /// </summary>
+        public void OnChangeCharacterType(Guid connectionId, int typeNum);
+
+        /// <summary>
+        /// プレイヤーのリスポーン通知
+        /// </summary>
+        public void OnReSpownPlayer(Guid connectionId);
+
+        /// <summary>
+        /// プレイヤー死亡通知
+        /// </summary>
+        public void OnDeathPlayer(Guid connectionId, Guid killedPlayerConnectionId);
+
+        /// <summary>
+        /// プレイヤーのヒットパーセント通知
+        /// </summary>
+        public void OnHitPercent(Guid connectionId, float value);
 
         /// <summary>
         /// ユーザーのTransform通知

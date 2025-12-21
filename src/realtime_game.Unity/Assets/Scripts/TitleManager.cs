@@ -23,7 +23,7 @@ public class TitleManager : MonoBehaviour {
         await RoomModel.Instance.ConnectAsync();
 
         // データがあるか
-        if(saveManager.LoadData() != null) {
+        if (saveManager.LoadData() != null) {
             SaveData data = saveManager.LoadData();
             // 自動ログインが有効だったらする
             if (data.AutoLogin) {
@@ -31,6 +31,7 @@ public class TitleManager : MonoBehaviour {
 
                 if (result) {
                     Debug.Log("自動ログイン成功");
+                    // ロビーシーンに移動
                     SceneManager.LoadScene("LobyScene");
                     return;
                 }

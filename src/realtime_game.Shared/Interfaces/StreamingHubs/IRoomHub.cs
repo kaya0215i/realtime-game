@@ -14,15 +14,13 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         // [サーバーに実装]
         // [クライアントから呼び出す]
 
-        /// <summary>
-        /// ユーザー入室
-        /// </summary>
-        Task<JoinedUser[]> JoinRoomAsync(string roomName, int userId);
 
-        /// <summary>
-        /// ユーザー退室
-        /// </summary>
-        Task LeaveRoomAsync(string roomName);
+        /*
+         * 
+         * ロビー
+         * 
+         */
+
 
         /// <summary>
         /// ロビールームの入室
@@ -33,6 +31,16 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         /// ロビールームの退室
         /// </summary>
         Task LeaveLobyAsync();
+
+        /// <summary>
+        /// ロビーに帰ってきたとき
+        /// </summary>
+        Task ReturnLobyRoomAsync();
+
+        /// <summary>
+        /// ロビーユーザー情報を取得
+        /// </summary>
+        Task<JoinedUser[]> GetLobyUsersAsync();
 
         /// <summary>
         /// チームを作成
@@ -48,6 +56,16 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         /// チームを抜ける
         /// </summary>
         Task LeaveTeamAsync();
+
+        /// <summary>
+        /// チームに入っているか
+        /// </summary>
+        Task<bool> IsAlreadyInTeamAsync();
+
+        /// <summary>
+        /// チームメンバー情報を取得
+        /// </summary>
+        Task<JoinedUser[]> GetTeamUsersAsync();
 
         /// <summary>
         /// チームにフレンドを招待
@@ -68,6 +86,64 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         /// 接続ID取得
         /// </summary>
         Task<Guid> GetConnectionId();
+
+
+        /*
+         * 
+         * インゲーム
+         * 
+         */
+
+
+        /// <summary>
+        /// ユーザー入室
+        /// </summary>
+        Task<JoinedUser[]> JoinRoomAsync(string roomName, int userId);
+
+        /// <summary>
+        /// ユーザー退室
+        /// </summary>
+        Task LeaveRoomAsync(string roomName);
+
+        /// <summary>
+        /// 現在のインゲームの情報を取得
+        /// </summary>
+        Task<InGameData> GetInGameDataAsync();
+
+        /// <summary>
+        /// ゲームスタート
+        /// </summary>
+        Task GameStartAsync();
+
+        /// <summary>
+        /// ゲーム終了
+        /// </summary>
+        Task GameEndAsync();
+
+        /// <summary>
+        /// ゲームタイマー更新
+        /// </summary>
+        Task UpdateGameTimerAsync(float deltaTime);
+
+        /// <summary>
+        /// キャラクタータイプ変更
+        /// </summary>
+        Task ChangeCharacterTypeAsync(int typeNum);
+
+        /// <summary>
+        /// プレイヤーのリスポーン
+        /// </summary>
+        Task ReSpownPlayerAsync();
+
+        /// <summary>
+        /// プレイヤー死亡
+        /// </summary>
+        Task DeathPlayerAsync(Guid killedPlayerConnectionId);
+
+        /// <summary>
+        /// プレイヤーのヒットパーセント
+        /// </summary>
+        Task HitPercentAsync(float value);
 
         /// <summary>
         /// ユーザーTransform更新

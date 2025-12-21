@@ -1,27 +1,3 @@
-%YAML 1.1
-%TAG !u! tag:unity3d.com,2011:
---- !u!114 &11400000
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 50d6abc948d9e34459531027a7e2ab43, type: 3}
-  m_Name: ObjectDataSO
-  m_EditorClassIdentifier: 
-  objectDataList:
-  - id: 1
-    name: Test
-    objectData: {fileID: 2816397289139639289, guid: 5cb2d2b1a41d2e440b6d96fdf64e00db, type: 3}
-  - id: 2
-    name: AssaultRifleBullet
-    objectData: {fileID: 6994698092722018310, guid: 34d7c4d1ba604d4459825ae70abd5d39, type: 3}
-  - id: 3
-    name: ShotGunBullet
-    objectData: {fileID: 6994698092722018310, guid: 5a7fafaaf68bfc647be22e489802d2e6, type: 3}
-  - id: 4
-    name: SniperRifleBullet
-    objectData: {fileID: 6994698092722018310, guid: dff3b01643f3d63438cba8660f8ca4e6, type: 3}
+version https://git-lfs.github.com/spec/v1
+oid sha256:5b5d6e1d330aa6b56d67f51211193b3b4add94e5e235be35d88ab2bdebfb6971
+size 935

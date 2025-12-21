@@ -1,4 +1,5 @@
 using Cysharp.Threading.Tasks;
+using Grpc.Core;
 using Grpc.Net.Client;
 using MagicOnion;
 using MagicOnion.Client;
@@ -8,7 +9,9 @@ using System;
 using System.Threading.Tasks;
 using UnityEditor.MemoryProfiler;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using static NetworkObject;
+using static PlayerManager;
 
 public class RoomModel : BaseModel, IRoomHubReceiver {
     // シングルトンにする
@@ -27,6 +30,13 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     private GrpcChannelx channel;
     private IRoomHub roomHub;
 
+    // チームID
+    public Guid TeamId { get; private set; }
+
+    // リーダーかどうか
+    public bool IsLeader {  get; private set; }
+
+    // ルーム名
     private string roomName;
 
     // 接続ID
@@ -59,6 +69,12 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     // マッチング通知
     public Action<string> OnMatchingedRoomUser { get; set; }
 
+    // ゲームシーンに移動した通知
+    public Action<Guid> OnWentGameRoomUser { get; set; }
+
+    // ロビーに帰ってきたとき通知
+    public Action<Guid> OnReturnedLobyRoomUser { get; set; }
+
     // ユーザーTransform更新通知
     public Action<Guid, Vector3, Quaternion, Quaternion> OnUpdatedTransformUser { get; set; }
 
@@ -74,6 +90,26 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     // オブジェクトのインタラクトをFalseにする通知
     public Action<Guid> OnFalsedObjectInteracting { get; set; }
 
+    // ゲームスタート通知
+    public Action OnGameStarted { get; set; }
+
+    // ゲーム終了通知
+    public Action OnGameEnded { get; set; }
+
+    // ゲームタイマー更新通知
+    public Action<float> OnUpdatedGameTimer { get; set; }
+
+    // キャラクタータイプ変更通知
+    public Action<Guid, PLAYER_CHARACTER_TYPE> OnChangedCharacterTypeUser { get; set; }
+
+    // プレイヤーのリスポーン通知
+    public Action<Guid> OnReSpownedPlayer { get; set; }
+
+    // プレイヤーの死亡通知
+    public Action<Guid, Guid> OnDeadPlayer { get; set; }
+
+    // プレイヤーのヒットパーセント通知
+    public Action<Guid, float> OnHitedPercentUser { get; set; }
 
     /// <summary>
     /// MagicOnion接続処理
@@ -97,16 +133,23 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     /// <summary>
     /// 破棄処理
     /// </summary>
-    private async void OnDestroy() {
-        DisconnectAsync();
+    private void OnDestroy() {
+        DisconnectAsync().Forget();
     }
 
     /// <summary>
     /// ゲーム終了時
     /// </summary>
     private void OnApplicationQuit() {
-        DisconnectAsync();
+        DisconnectAsync().Forget();
     }
+
+
+    /*
+     * 
+     * ロビー内
+     * 
+     */
 
 
     /// <summary>
@@ -119,26 +162,25 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     /// <summary>
     /// ロビールームに入室
     /// </summary>
-    public async UniTask JoinLobyAsync() {
-        JoinedUser[] users = await roomHub.JoinLobyAsync(UserModel.Instance.UserId);
+    public async UniTask<bool> JoinLobyAsync() {
+        if (roomHub != null) {
+            try {
+                JoinedUser[] users = await roomHub.JoinLobyAsync(UserModel.Instance.UserId);
+                foreach (var user in users) {
+                    if (OnJoinedLobyUser != null) {
+                        OnJoinedLobyUser(user);
+                    }
+                }
 
-        // 配列の長さが0の(ルーム内に同じユーザーIDのプレイヤーがいる)場合何もしない
-        if (users.Length == 0) {
-            return;
-        }
-
-        foreach (var user in users) {
-            if (OnJoinedLobyUser != null) {
-                OnJoinedLobyUser(user);
+                return true;
+            }
+            catch (RpcException e) {
+                Debug.LogException(e);
+                return false;
             }
         }
-    }
 
-    /// <summary>
-    /// ロビールームから退室
-    /// </summary>
-    public async UniTask LeaveLobyAsync() {
-        await roomHub.LeaveLobyAsync();
+        return false;
     }
 
     /// <summary>
@@ -152,6 +194,15 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     }
 
     /// <summary>
+    /// ロビールームから退室
+    /// </summary>
+    public async UniTask LeaveLobyAsync() {
+        if (roomHub != null) {
+            await roomHub.LeaveLobyAsync();
+        }
+    }
+
+    /// <summary>
     /// [サーバー通知]
     /// ロビーの退室通知
     /// </summary>
@@ -161,24 +212,239 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
         }
     }
 
+
     /// <summary>
-    /// 入室処理
+    /// ロビーユーザー情報を取得
     /// </summary>
-    public async UniTask JoinRoomAsync() {
+    public async UniTask GetLobyUsersAsync() {
         if (roomHub != null) {
-            JoinedUser[] users = await roomHub.JoinRoomAsync(this.roomName, UserModel.Instance.UserId);
-
-            // 配列の長さが0の(ルーム内に同じユーザーIDのプレイヤーがいる)場合何もしない
-            if (users.Length == 0) {
-                return;
-            }
-
-            foreach (var user in users) {
-                if (OnJoinedRoomUser != null) {
-                    OnJoinedRoomUser(user);
+            JoinedUser[] users = await roomHub.GetLobyUsersAsync();
+            // 情報を取得出来てたら
+            if (users != null) {
+                foreach (var user in users) {
+                    if (OnJoinedLobyUser != null) {
+                        OnJoinedLobyUser(user);
+                    }
                 }
             }
         }
+    }
+
+
+    /// <summary>
+    /// チームを作成
+    /// </summary>
+    public async UniTask CreateTeamAndJoinAsync() {
+        TeamId = await roomHub.CreateTeamAndJoinAsync();
+        IsLeader = true;
+    }
+
+    /// <summary>
+    /// チームに参加
+    /// </summary>
+    public async UniTask JoinTeamAsync(Guid targetTeamId) {
+        if (roomHub != null) {
+            JoinedUser[] users = await roomHub.JoinTeamAsync(targetTeamId);
+
+            TeamId = targetTeamId;
+
+            // 配列の長さが0の(もうチームに入っている)場合何もしない
+            if (users.Length == 0) {
+                return;
+            }
+            foreach (var user in users) {
+                if (OnJoinedTeamUser != null) {
+                    OnJoinedTeamUser(user);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// チームの参加通知
+    /// </summary>
+    public void OnJoinTeam(JoinedUser user) {
+        if (OnJoinedTeamUser != null) {
+            OnJoinedTeamUser(user);
+        }
+    }
+
+    /// <summary>
+    /// チームから退出
+    /// </summary>
+    public async UniTask LeaveTeamAsync() {
+        if (roomHub != null) {
+            await roomHub.LeaveTeamAsync();
+            IsLeader = false;
+        }
+    }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// チームの退出通知
+    /// </summary>
+    public void OnLeaveTeam(Guid connectionId) {
+        if (OnLeavedTeamUser != null) {
+            OnLeavedTeamUser(connectionId);
+        }
+    }
+
+
+    /// <summary>
+    /// チームにフレンドを招待
+    /// </summary>
+    public async UniTask InviteTeamFriendAsync(Guid targetConnectionId) {
+        if (roomHub != null) {
+            await roomHub.InviteTeamFriendAsync(targetConnectionId, TeamId);
+        }
+    }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// チームに招待通知
+    /// </summary>
+    public void OnInviteTeam(Guid teamId, User senderUser) {
+        if (OnInvitedTeamUser != null) {
+            OnInvitedTeamUser(teamId, senderUser);
+        }
+    }
+
+
+    /// <summary>
+    /// チームに入っているか
+    /// </summary>
+    public async UniTask<bool> IsAlreadyInTeamAsync() {
+        if (roomHub != null) {
+            try {
+                return await roomHub.IsAlreadyInTeamAsync();
+            }
+            catch {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// チームメンバー情報を取得
+    /// </summary>
+    public async UniTask GetTeamUsersAsync() {
+        if (roomHub != null) {
+            JoinedUser[] users = await roomHub.GetTeamUsersAsync();
+            // 情報を取得出来てたら
+            if (users != null) {
+                foreach (var user in users) {
+                    if (OnJoinedTeamUser != null) {
+                        OnJoinedTeamUser(user);
+                    }
+                }
+            }
+        }
+    }
+
+
+    /// <summary>
+    /// 準備状態を送る
+    /// </summary>
+    public async UniTask SendIsReadyStatusAsync(bool isReady) {
+        if (roomHub != null) {
+            await roomHub.SendIsReadyStatusAsync(isReady);
+        }
+    }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// 準備状態通知
+    /// </summary>
+    public void OnIsReadyStatus(Guid connectionId, bool IsReady) {
+        if (OnIsReadyedStatusUser != null) {
+            OnIsReadyedStatusUser(connectionId, IsReady);
+        }
+    }
+
+
+    /// <summary>
+    /// ロビーに帰ってきたとき
+    /// </summary>
+    public async UniTask ReturnLobyRoomAsync() {
+        if (roomHub != null) {
+            await roomHub.ReturnLobyRoomAsync();
+        }
+    }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// ロビーに帰ってきたとき通知
+    /// </summary>
+    public void OnReturnedLobyRoom(Guid connectionId) {
+        if (OnReturnedLobyRoomUser != null) {
+            OnReturnedLobyRoomUser(connectionId);
+        }
+    }
+
+
+    /// <summary>
+    /// マッチングする　ルームを探してなかったら作る
+    /// </summary>
+    public async UniTask StartMatchingAsync() {
+        if (roomHub != null) {
+            await roomHub.StartMatchingAsync();
+        }
+    }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// マッチング通知
+    /// </summary>
+    public void OnMatchingRoom(string roomName) {
+        if (OnMatchingedRoomUser != null) {
+            this.roomName = roomName;
+            OnMatchingedRoomUser(roomName);
+        }
+    }
+
+
+    /// <summary>
+    /// [サーバー通知]
+    /// ゲームシーンに移動した通知
+    /// </summary>
+    public void OnGoGameRoom(Guid connectionId) {
+        if (OnWentGameRoomUser != null) {
+            OnWentGameRoomUser(connectionId);
+        }
+    }
+
+
+    /*
+     * 
+     * インゲーム内
+     * 
+     */
+
+
+    /// <summary>
+    /// 入室処理
+    /// </summary>
+    public async UniTask<bool> JoinRoomAsync() {
+        if (roomHub != null) {
+            try {
+                JoinedUser[] users = await roomHub.JoinRoomAsync(this.roomName, UserModel.Instance.UserId);
+
+                foreach (var user in users) {
+                    if (OnJoinedRoomUser != null) {
+                        OnJoinedRoomUser(user);
+                    }
+                }
+                return true;
+            }
+            catch (RpcException e) {
+                Debug.LogException(e);
+                return false;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -208,118 +474,161 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
         }
     }
 
-    /// <summary>
-    /// チームを作成
-    /// </summary>
-    public async UniTask<Guid> CreateTeamAndJoinAsync() {
-        return await roomHub.CreateTeamAndJoinAsync();
-    }
+
 
     /// <summary>
-    /// チームに参加
+    /// 現在のインゲームの情報を取得
     /// </summary>
-    public async UniTask JoinTeamAsync(Guid targetTeamId) {
+    public async UniTask<InGameData> GetInGameDataAsync() {
         if (roomHub != null) {
-            JoinedUser[] users = await roomHub.JoinTeamAsync(targetTeamId);
-
-            // 配列の長さが0の(もうチームに入っている)場合何もしない
-            if (users.Length == 0) {
-                return;
-            }
-            foreach (var user in users) {
-                if (OnJoinedTeamUser != null) {
-                    OnJoinedTeamUser(user);
-                }
-            }
+            return await roomHub.GetInGameDataAsync();
         }
+
+        return null;
     }
 
-    /// <summary>
-    /// チームから退出
-    /// </summary>
-    public async UniTask LeaveTeamAsync() {
-        if (roomHub != null) {
-            await roomHub.LeaveTeamAsync();
-        }
-    }
+
 
     /// <summary>
-    /// チームの参加通知
+    /// ゲームスタート
     /// </summary>
-    public void OnJoinTeam(JoinedUser user) {
-        if (OnJoinedTeamUser != null) {
-            OnJoinedTeamUser(user);
-        }
-    }
-
-    /// <summary>
-    /// チームの退出通知
-    /// </summary>
-    public void OnLeaveTeam(Guid connectionId) {
-        if (OnLeavedTeamUser != null) {
-            OnLeavedTeamUser(connectionId);
-        }
-    }
-
-    /// <summary>
-    /// チームにフレンドを招待
-    /// </summary>
-    public async UniTask InviteTeamFriendAsync(Guid targetConnectionId, Guid teamId) {
-        if (roomHub != null) {
-            await roomHub.InviteTeamFriendAsync(targetConnectionId, teamId);
-        }
-    }
-
-    /// <summary>
-    /// チームに招待通知
-    /// </summary>
-    public void OnInviteTeam(Guid teamId, User senderUser) {
-        if (OnInvitedTeamUser != null) {
-            OnInvitedTeamUser(teamId, senderUser);
-        }
-    }
-
-    /// <summary>
-    /// 準備状態を通知
-    /// </summary>
-    public async UniTask SendIsReadyStatusAsync(bool isReady) {
+    public async UniTask GameStartAsync() {
         if(roomHub != null) {
-            await roomHub.SendIsReadyStatusAsync(isReady);
+            await roomHub.GameStartAsync();
         }
     }
 
     /// <summary>
     /// [サーバー通知]
-    /// 準備状態通知
+    /// ゲームスタート通知
     /// </summary>
-    public void OnIsReadyStatus(Guid connectionId, bool IsReady) {
-        if (OnIsReadyedStatusUser != null) {
-            OnIsReadyedStatusUser(connectionId, IsReady);
+    public void OnGameStart() {
+        if (OnGameStarted != null) {
+            OnGameStarted();
         }
     }
 
     /// <summary>
-    /// マッチングする　ルームを探してなかったら作る
+    /// ゲーム終了
     /// </summary>
-    public async UniTask StartMatchingAsync() {
-        if(roomHub != null) {
-            await roomHub.StartMatchingAsync();
+    public async UniTask GameEndAsync() {
+        if (roomHub != null) {
+            await roomHub.GameEndAsync();
         }
     }
 
     /// <summary>
     /// [サーバー通知]
-    /// マッチング通知
+    /// ゲーム終了通知
     /// </summary>
-    public void OnMatchingRoom(string roomName) {
-        if (OnMatchingedRoomUser != null) {
-            this.roomName = roomName;
-            OnMatchingedRoomUser(roomName);
+    public void OnGameEnd() {
+        if (OnGameEnded != null) {
+            OnGameEnded();
+        }
+    }
+
+
+    /// <summary>
+    /// ゲームタイマー更新
+    /// </summary>
+    public async UniTask UpdateGameTimerAsync(float deltaTime) {
+        if(roomHub != null) {
+            await roomHub.UpdateGameTimerAsync(deltaTime);
         }
     }
 
     /// <summary>
-    /// Transformの更新
+    /// [サーバー通知]
+    /// ゲームタイマーの更新通知
+    /// </summary>
+    public void OnUpdateGameTimer(float timer) {
+        if (OnUpdatedGameTimer != null) {
+            OnUpdatedGameTimer(timer);
+        }
+    }
+
+
+    /// <summary>
+    /// キャラクタータイプ変更
+    /// </summary>
+    public async UniTask ChangeCharacterTypeAsync(PLAYER_CHARACTER_TYPE type) {
+        if (roomHub  != null) {
+            await roomHub.ChangeCharacterTypeAsync((int)type);
+        }
+    }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// キャラクタータイプ変更通知
+    /// </summary>
+    public void OnChangeCharacterType(Guid connectionId, int typeNum) {
+        if (OnChangedCharacterTypeUser  != null) {
+            OnChangedCharacterTypeUser(connectionId, (PLAYER_CHARACTER_TYPE)Enum.ToObject(typeof(PLAYER_CHARACTER_TYPE), typeNum));
+        }
+    }
+
+
+    /// <summary>
+    /// プレイヤーのリスポーン
+    /// </summary>
+    public async UniTask ReSpownPlayerAsync() {
+        if (roomHub != null) {
+            await roomHub.ReSpownPlayerAsync();
+        }
+    }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// プレイヤーのリスポーン通知
+    /// </summary>
+    public void OnReSpownPlayer(Guid connectionId) {
+        if (OnReSpownedPlayer  != null) {
+            OnReSpownedPlayer(connectionId);
+        }
+    }
+    
+    /// <summary>
+    /// プレイヤー死亡
+    /// </summary>
+    public async UniTask DeathPlayerAsync(Guid killedPlayerConnectionId) {
+        if (roomHub != null) {
+            await roomHub.DeathPlayerAsync(killedPlayerConnectionId);
+        }
+    }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// プレイヤー死亡通知
+    /// </summary>
+    public void OnDeathPlayer(Guid connectionId, Guid killedPlayerConnectionId) {
+        if (OnDeadPlayer != null) {
+            OnDeadPlayer(connectionId, killedPlayerConnectionId);
+        }
+    }
+
+
+    /// <summary>
+    /// プレイヤーのヒットパーセント
+    /// </summary>
+    public async UniTask HitPercentAsync(float value) {
+        if (roomHub != null) {
+            await roomHub.HitPercentAsync(value);
+        }
+    }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// プレイヤーのヒットパーセント通知
+    /// </summary>
+    public void OnHitPercent(Guid connectionId, float value) {
+        if (OnHitedPercentUser  != null) {
+            OnHitedPercentUser(connectionId, value);
+        }
+    }
+
+
+    /// <summary>
+    /// ユーザーのTransformの更新
     /// </summary>
     public async UniTask UpdateUserTransformAsync(Vector3 pos, Quaternion rotate, Quaternion cameraRotate) {
         if (roomHub != null) {
@@ -329,13 +638,14 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
 
     /// <summary>
     /// [サーバー通知]
-    /// Transformの更新通知
+    /// ユーザーのTransformの更新通知
     /// </summary>
     public void OnUpdateUserTransform(Guid connectionId, Vector3 pos, Quaternion rotate, Quaternion cameraRotate) {
         if (OnUpdatedTransformUser != null) {
             OnUpdatedTransformUser(connectionId, pos, rotate, cameraRotate);
         }
     }
+
 
     /// <summary>
     /// オブジェクトの作成
@@ -354,24 +664,6 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     }
 
     /// <summary>
-    /// オブジェクトの破棄
-    /// </summary>
-    public async UniTask DestroyObjectAsync(Guid objectId) {
-        if (roomHub != null) {
-            await roomHub.DestroyObjectAsync(objectId);
-        }
-    }
-
-    /// <summary>
-    /// オブジェクトのTransformの更新
-    /// </summary>
-    public async UniTask UpdateObjectTransformAsync(Guid objectId, Vector3 pos, Quaternion rotate) {
-        if (roomHub != null) {
-            await roomHub.UpdateObjectTransformAsync(objectId, pos, rotate);
-        }
-    }
-
-    /// <summary>
     /// [サーバー通知]
     /// オブジェクトの作成通知
     /// </summary>
@@ -380,27 +672,6 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
             OnCreatedObject(connectionId, objectId, objectDataId, pos, rotate, (UpdateObjectTypes)Enum.ToObject(typeof(UpdateObjectTypes), updateTypeNum));
         }
     }
-
-    /// <summary>
-    /// [サーバー通知]
-    /// オブジェクトの破棄通知
-    /// </summary>
-    public void OnDestroyObject(Guid objectId) {
-        if(OnDestroyedObject  != null) {
-            OnDestroyedObject(objectId);
-        }
-    }
-
-    /// <summary>
-    /// [サーバー通知]
-    /// オブジェクトのTransformの更新通知
-    /// </summary>
-    public void OnUpdateObjectTransform(Guid objectId, Vector3 pos, Quaternion rotate) {
-        if (OnUpdatedObjectTransform != null) {
-            OnUpdatedObjectTransform(objectId, pos, rotate);
-        }
-    }
-
 
     /// <summary>
     /// オブジェクトがインタラクト可能であればする
@@ -427,8 +698,46 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     /// オブジェクトのinteractingをfalseにする
     /// </summary>
     public void OnFalseObjectInteracting(Guid objectId) {
-        if(OnFalsedObjectInteracting != null) {
+        if (OnFalsedObjectInteracting != null) {
             OnFalsedObjectInteracting(objectId);
         }
     }
+
+    /// <summary>
+    /// オブジェクトの破棄
+    /// </summary>
+    public async UniTask DestroyObjectAsync(Guid objectId) {
+        if (roomHub != null) {
+            await roomHub.DestroyObjectAsync(objectId);
+        }
+    }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// オブジェクトの破棄通知
+    /// </summary>
+    public void OnDestroyObject(Guid objectId) {
+        if (OnDestroyedObject != null) {
+            OnDestroyedObject(objectId);
+        }
+    }
+
+    /// <summary>
+    /// オブジェクトのTransformの更新
+    /// </summary>
+    public async UniTask UpdateObjectTransformAsync(Guid objectId, Vector3 pos, Quaternion rotate) {
+        if (roomHub != null) {
+            await roomHub.UpdateObjectTransformAsync(objectId, pos, rotate);
+        }
+    }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// オブジェクトのTransformの更新通知
+    /// </summary>
+    public void OnUpdateObjectTransform(Guid objectId, Vector3 pos, Quaternion rotate) {
+        if (OnUpdatedObjectTransform != null) {
+            OnUpdatedObjectTransform(objectId, pos, rotate);
+        }
+    }    
 }

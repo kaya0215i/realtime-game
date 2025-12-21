@@ -47,7 +47,7 @@ public class UserModel : BaseModel {
             return true;
         } catch (RpcException e) {
             // “o˜^Ž¸”s
-            Debug.Log(e);
+            Debug.LogException(e);
             return false;
         }
     }
@@ -103,7 +103,7 @@ public class UserModel : BaseModel {
         }
         catch (RpcException e) {
             // ‘—MŽ¸”s
-            Debug.Log(e);
+            Debug.LogException(e);
         }
         
     }
@@ -118,7 +118,7 @@ public class UserModel : BaseModel {
         }
         catch (RpcException e) {
             // ³”FŽ¸”s
-            Debug.Log(e);
+            Debug.LogException(e);
         }
     }
 
@@ -132,7 +132,7 @@ public class UserModel : BaseModel {
         }
         catch (RpcException e) {
             // ‹‘”ÛŽ¸”s
-            Debug.Log(e);
+            Debug.LogException(e);
         }
     }
 
@@ -168,7 +168,7 @@ public class UserModel : BaseModel {
         }
         catch (RpcException e) {
             // Ž¸”s
-            Debug.Log(e);
+            Debug.LogException(e);
             return false;
         }
     }
