@@ -500,7 +500,7 @@ namespace realtime_game.Server.StreamingHubs {
             joinedUser.JoinOrder = this._roomContext.RoomUserDataList.Count + 1;
 
             // ルームコンテキストにユーザー情報を登録
-            var roomUserData = new RoomUserData() { JoinedUser = joinedUser };
+            var roomUserData = new RoomUserData() { UserBattleData = new UserBattleData(), JoinedUser = joinedUser };
             this._roomContext.RoomUserDataList[this.ConnectionId] = roomUserData;
 
             Console.ForegroundColor = ConsoleColor.Blue;
@@ -576,6 +576,18 @@ namespace realtime_game.Server.StreamingHubs {
         }
 
         /// <summary>
+        /// (途中参加用)プレイヤーのステータスを取得
+        /// </summary>
+        public Task<Dictionary<Guid, UserBattleData>> GetUserBattleDataAsync() {
+            var userBattleData = new Dictionary<Guid, UserBattleData>();
+            foreach (var roomUser in this._roomContext.RoomUserDataList) {
+                userBattleData.Add(roomUser.Key, roomUser.Value.UserBattleData);
+            }
+
+            return Task.FromResult<Dictionary<Guid, UserBattleData>>(userBattleData);
+        }
+
+        /// <summary>
         /// ゲームスタート
         /// </summary>
         public Task GameStartAsync() {
@@ -640,6 +652,10 @@ namespace realtime_game.Server.StreamingHubs {
         /// プレイヤー死亡
         /// </summary>
         public Task DeathPlayerAsync(Guid killedPlayerConnectionId) {
+            // スコアを反映
+            this._roomContext.RoomUserDataList[this.ConnectionId].UserBattleData.Score -= 1;
+            this._roomContext.RoomUserDataList[killedPlayerConnectionId].UserBattleData.Score += 1;
+
             // 自分以外に通知
             this._roomContext.Group.Except([this.ConnectionId]).OnDeathPlayer(this.ConnectionId, killedPlayerConnectionId);
 
@@ -650,7 +666,7 @@ namespace realtime_game.Server.StreamingHubs {
         /// プレイヤーのヒットパーセント
         /// </summary>
         public Task HitPercentAsync(float value) {
-            this._roomContext.RoomUserDataList[this.ConnectionId].hitPercent = value;
+            this._roomContext.RoomUserDataList[this.ConnectionId].UserBattleData.HitPercent = value;
 
             // ヒットパーセントを自分以外に通知
             this._roomContext.Group.Except([this.ConnectionId]).OnHitPercent(this.ConnectionId, value);

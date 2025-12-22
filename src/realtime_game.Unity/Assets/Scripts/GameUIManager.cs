@@ -1,5 +1,9 @@
 using MessagePack.Resolvers;
+using NUnit.Framework;
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -23,6 +27,8 @@ public class GameUIManager : MonoBehaviour {
     [SerializeField] private Text bulletAmountText;
     // クールタイム
     [SerializeField] private Image shotCoolTimeImage;
+    // ヒットパーセントテキスト
+    [SerializeField] private TextMeshProUGUI hitPercentText;
 
 
     // デスカメラ用
@@ -32,6 +38,13 @@ public class GameUIManager : MonoBehaviour {
     [NonSerialized] public bool isDeath = false;
     [NonSerialized] public float reSpownCoolTimer = 1;
     [NonSerialized] public int reSpownCoolTimeCountDown = 4;
+
+    // スコアボード用
+    [SerializeField] private GameObject scoreBoadHeader;
+    [SerializeField] private GameObject scoreBoadPanel;
+    [SerializeField] private GameObject scorePrefab;
+    [SerializeField] private Transform scoreParent;
+    private Dictionary<Guid, GameObject> scoreObjectUIList = new Dictionary<Guid, GameObject>();
 
     private void Update() {
         // ゲームスタート中
@@ -59,6 +72,18 @@ public class GameUIManager : MonoBehaviour {
                     // テキストに反映
                     reSpownBtnText.text = reSpownBtnTextString;
                 }
+            }
+            else {
+                // スコアボード表示非表示
+                if (Input.GetKeyDown(KeyCode.Tab)) {
+                    scoreBoadPanel.SetActive(true);
+                }
+                if (Input.GetKeyUp(KeyCode.Tab)) {
+                    scoreBoadPanel.SetActive(false);
+                }
+
+                // スコアボード更新
+                UpdateScoreBoad();
             }
         }
         // ゲームスタート前
@@ -168,11 +193,16 @@ public class GameUIManager : MonoBehaviour {
     public void ShowDeathCameraUI(string killerName) {
         deathCameraUI.SetActive(true);
 
+        // スコアボード非表示
+        scoreBoadHeader.SetActive(false);
+        scoreBoadPanel.SetActive(false);
+
         // 自分を殺したプレイヤー名設定
         killerNameText.text = killerName;
 
         bulletAmountText.gameObject.SetActive(false);
         shotCoolTimeImage.gameObject.SetActive(false);
+        hitPercentText.gameObject.SetActive(false);
     }
 
     /// <summary>
@@ -181,7 +211,63 @@ public class GameUIManager : MonoBehaviour {
     public void HideDeathCameraUI() {
         deathCameraUI.SetActive(false);
 
+        // スコアボード表示
+        scoreBoadHeader.SetActive(true);
+
         bulletAmountText.gameObject.SetActive(true);
         shotCoolTimeImage.gameObject.SetActive(true);
+        hitPercentText.gameObject.SetActive(true);
+    }
+
+    /// <summary>
+    /// スコアボードにプレイヤーを追加
+    /// </summary>
+    public void AddPlayerToScoreBoad(Guid connectionId) {
+        GameObject createdUI = Instantiate(scorePrefab, parent: scoreParent);
+        scoreObjectUIList[connectionId] = createdUI;
+
+        Text[] texts = createdUI.GetComponentsInChildren<Text>(true);
+        texts.First(text => text.gameObject.name == "RankingText").text = "1";
+        texts.First(text => text.gameObject.name == "PlayerNameText").text = gameManager.CharacterList[connectionId].joinedData.UserData.Display_Name;
+        texts.First(text => text.gameObject.name == "PlayerHitPercentText").text = "0%";
+        texts.First(text => text.gameObject.name == "PlayerScoreText").text = "0";
+
+        UpdateScoreBoad();
+    }
+
+    /// <summary>
+    /// ヒットパーセントテキスト更新
+    /// </summary>
+    public void UpdateHitPercentText(float hitPercent) {
+        hitPercentText.text = hitPercent + "%";
+    }
+
+    /// <summary>
+    /// スコアボードを更新
+    /// </summary>
+    public void UpdateScoreBoad() {
+        foreach (var text in scoreObjectUIList) {
+            Text[] texts = text.Value.GetComponentsInChildren<Text>(true);
+            texts.First(text => text.gameObject.name == "RankingText").text = (gameManager.ScoreList.FindIndex(ps => ps.ConnectionId == text.Key) + 1).ToString();
+            if (gameManager.CharacterList[text.Key].playerObject != null) {
+                texts.First(text => text.gameObject.name == "PlayerHitPercentText").text = gameManager.CharacterList[text.Key].playerObject.GetComponent<PlayerManager>().HitPercent + "%";
+            }
+            else {
+                texts.First(text => text.gameObject.name == "PlayerHitPercentText").text = "0%";
+            }
+            texts.First(text => text.gameObject.name == "PlayerScoreText").text = gameManager.ScoreList.First(ps => ps.ConnectionId == text.Key).Score.ToString();
+
+            text.Value.transform.SetSiblingIndex(gameManager.ScoreList.FindIndex(ps => ps.ConnectionId == text.Key));
+        }
+    }
+
+    /// <summary>
+    /// スコアボードからプレイヤーを削除
+    /// </summary>
+    public void DeletePlayerFromScoreBoad(Guid connectionId) {
+        Destroy(scoreObjectUIList[connectionId]);
+        scoreObjectUIList.Remove(connectionId);
+
+        UpdateScoreBoad();
     }
 }

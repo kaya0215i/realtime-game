@@ -60,10 +60,10 @@ public class BulletController : MonoBehaviour {
                     UnityEngine.Random.Range(MIN_RANDOM_VALUE, MAX_RANDOM_VALUE),
                     UnityEngine.Random.Range(MIN_RANDOM_VALUE, MAX_RANDOM_VALUE));
 
-                myRb.AddForce(Camera.main.transform.forward * ShotPower + rndSolt, ForceMode.Impulse);
+                myRb.AddForce(this.transform.forward * ShotPower + rndSolt, ForceMode.Impulse);
             }
             else {
-                myRb.AddForce(Camera.main.transform.forward * ShotPower, ForceMode.Impulse);
+                myRb.AddForce(this.transform.forward * ShotPower, ForceMode.Impulse);
             }
         }
         // ëºÇÃÉvÉåÉCÉÑÅ[ÇÃåÇÇ¡ÇΩíeÇæÇ¡ÇΩÇÁ
@@ -75,10 +75,10 @@ public class BulletController : MonoBehaviour {
                     UnityEngine.Random.Range(MIN_RANDOM_VALUE, MAX_RANDOM_VALUE),
                     UnityEngine.Random.Range(MIN_RANDOM_VALUE, MAX_RANDOM_VALUE));
 
-                myRb.AddForce(playerController._head.forward * ShotPower + rndSolt, ForceMode.Impulse);
+                myRb.AddForce(this.transform.forward * ShotPower + rndSolt, ForceMode.Impulse);
             }
             else {
-                myRb.AddForce(playerController._head.forward * ShotPower, ForceMode.Impulse);
+                myRb.AddForce(this.transform.forward * ShotPower, ForceMode.Impulse);
             }
         }
     }

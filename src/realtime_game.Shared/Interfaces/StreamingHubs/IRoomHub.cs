@@ -111,6 +111,10 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         Task<InGameData> GetInGameDataAsync();
 
         /// <summary>
+        /// (途中参加用)プレイヤーのステータスを取得
+        /// </summary>
+        Task<Dictionary<Guid, UserBattleData>> GetUserBattleDataAsync();
+        /// <summary>
         /// ゲームスタート
         /// </summary>
         Task GameStartAsync();

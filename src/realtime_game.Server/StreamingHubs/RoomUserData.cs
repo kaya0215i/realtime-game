@@ -8,7 +8,7 @@ namespace realtime_game.Server.StreamingHubs {
 
         public int characterTypeNum = 0;
 
-        public float hitPercent = 0;
+        public UserBattleData UserBattleData;
 
         public JoinedUser JoinedUser;
     }

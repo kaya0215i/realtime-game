@@ -256,6 +256,7 @@ public class PlayerController : MonoBehaviour {
 
         switch (playerManager.characterType) {
             case PLAYER_CHARACTER_TYPE.AssaultRifle:
+            case PLAYER_CHARACTER_TYPE.SniperRifle:
                 if (Input.GetMouseButton(0)) {
                     // リロード中だったらタスクをキャンセル
                     if (isReloading) {
@@ -266,7 +267,7 @@ public class PlayerController : MonoBehaviour {
                     bulletAmount -= 1;
                     shotCoolTimer = 0;
 
-                    GameObject createdBullet = Instantiate(bulletList.First(_ => _.name == bulletName), Camera.main.transform.position + Camera.main.transform.forward, Quaternion.identity, bulletParent);
+                    GameObject createdBullet = Instantiate(bulletList.First(_ => _.name == bulletName), Camera.main.transform.position + Camera.main.transform.forward, _head.transform.rotation, bulletParent);
                     BulletController createdBulletController = createdBullet.GetComponent<BulletController>();
                 }
 
@@ -284,26 +285,9 @@ public class PlayerController : MonoBehaviour {
                     shotCoolTimer = 0;
 
                     for (int i = 0; i < ShotGunShotBulletAmount; i++) {
-                        GameObject createdBullet = Instantiate(bulletList.First(_ => _.name == bulletName), Camera.main.transform.position + Camera.main.transform.forward, Quaternion.identity, bulletParent);
+                        GameObject createdBullet = Instantiate(bulletList.First(_ => _.name == bulletName), Camera.main.transform.position + Camera.main.transform.forward, _head.transform.rotation, bulletParent);
                         BulletController createdBulletController = createdBullet.GetComponent<BulletController>();
                     }
-                }
-
-                break;
-
-            case PLAYER_CHARACTER_TYPE.SniperRifle:
-                if (Input.GetMouseButtonDown(0)) {
-                    // リロード中だったらタスクをキャンセル
-                    if (isReloading) {
-                        reloadCTS.Cancel();
-                        isReloading = false;
-                    }
-
-                    bulletAmount -= 1;
-                    shotCoolTimer = 0;
-
-                    GameObject createdBullet = Instantiate(bulletList.First(_ => _.name == bulletName), Camera.main.transform.position + Camera.main.transform.forward, Quaternion.identity, bulletParent);
-                    BulletController createdBulletController = createdBullet.GetComponent<BulletController>();
                 }
 
                 break;

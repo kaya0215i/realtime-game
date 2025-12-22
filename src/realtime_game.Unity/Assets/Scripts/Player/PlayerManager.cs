@@ -13,7 +13,7 @@ public class PlayerManager : MonoBehaviour {
 
     private Rigidbody myRb;
 
-    [NonSerialized] private GameUIManager uiManager;
+    [NonSerialized] private GameUIManager gameUIManager;
 
     // このキャラクターのコネクションID
     [NonSerialized] public Guid thisCharacterConnectionId;
@@ -47,7 +47,7 @@ public class PlayerManager : MonoBehaviour {
     private TextMeshProUGUI headUpHitPercentText;
 
     // ヒットパーセント
-    public float HitPercent = 0f;
+    [NonSerialized] public float HitPercent = 0f;
 
     private void Start() {
         gameManager = GameObject.Find("GameManager").GetComponent<GameManager>();
@@ -56,7 +56,7 @@ public class PlayerManager : MonoBehaviour {
 
         myRb = this.GetComponent <Rigidbody>();
 
-        uiManager = GameObject.Find("UICanvas").GetComponent<GameUIManager>();
+        gameUIManager = GameObject.Find("UICanvas").GetComponent<GameUIManager>();
 
         headUpHitPercentText = GetComponentInChildren<TextMeshProUGUI>();
     }
@@ -67,9 +67,11 @@ public class PlayerManager : MonoBehaviour {
             playerController._head.transform.DORotateQuaternion(cameraRotate, 0.1f).SetEase(Ease.InOutQuad);
 
             // ヒットパーセントをUIに反映
-            headUpHitPercentText.text = Math.Round(HitPercent, 2, MidpointRounding.AwayFromZero).ToString();
+            headUpHitPercentText.text = Math.Round(HitPercent, 2, MidpointRounding.AwayFromZero).ToString() + "%";
             return;
         }
+        // 自分の画面のヒットパーセントを反映
+        gameUIManager.UpdateHitPercentText((float)Math.Round(HitPercent, 2, MidpointRounding.AwayFromZero));
 
         // キャラクターのTransformをサーバーに送信
         cameraRotate = playerController._head.transform.rotation;
@@ -163,5 +165,4 @@ public class PlayerManager : MonoBehaviour {
             }
         }
     }
-
 }

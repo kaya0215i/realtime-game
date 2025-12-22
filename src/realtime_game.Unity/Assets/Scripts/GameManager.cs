@@ -11,9 +11,11 @@ using Unity.Cinemachine;
 using UnityEditor.MemoryProfiler;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.SocialPlatforms.Impl;
 using UnityEngine.UI;
 using static NetworkObject;
 using static PlayerManager;
+using static UnityEngine.Rendering.DebugUI;
 
 public class GameManager : MonoBehaviour {
     // プレイヤーを生成する親Transform
@@ -41,7 +43,7 @@ public class GameManager : MonoBehaviour {
     [NonSerialized] public JoinedUser mySelf = new JoinedUser(); // 自分のユーザー情報を保存
     [NonSerialized] public bool isJoined = false;
 
-    private float startTime = 30f;
+    private float startTime = 3f;
     public float StartTimer { get; private set; }
 
     // サーバー通信用CancellationTokenSource
@@ -52,6 +54,9 @@ public class GameManager : MonoBehaviour {
 
     // 自分を殺したプレイヤーのCinemachineCamera
     private CinemachineCamera killedPlyaerCamera;
+
+    // プレイヤーのスコアリスト
+    public List<PlayerScore> ScoreList { get; private set; } = new List<PlayerScore>();
 
     /*
      * 共有用フィールド
@@ -289,6 +294,14 @@ public class GameManager : MonoBehaviour {
                 gameUIManager.UpdateGameTimer(gameTimerShared);
             }
         }
+
+        // 現在のプレイヤーのステータスを取得して反映
+        var userBattleDatas = await RoomModel.Instance.GetUserBattleDataAsync();
+        foreach (var item in userBattleDatas) {
+            CharacterList[item.Key].playerObject.GetComponent<PlayerManager>().HitPercent = item.Value.HitPercent;
+            ScoreList.Find(_=> _.ConnectionId == item.Key).Score = item.Value.Score;
+        }
+        ScoreList = ScoreList.OrderBy(ps => -ps.Score).ToList();
     }
 
     /// <summary>
@@ -312,6 +325,9 @@ public class GameManager : MonoBehaviour {
 
         mySelf = new JoinedUser();
         CharacterList = new Dictionary<Guid, UserDataAndObject>();
+
+        // マウスカーソルを表示
+        ShowMouseCursor();
 
         // ロビーシーンに戻る
         SceneManager.LoadScene("LobyScene");
@@ -342,6 +358,10 @@ public class GameManager : MonoBehaviour {
             // 頭上ヒットパーセントのレイヤーを変更
             myCharacter.GetComponentInChildren<Canvas>().gameObject.layer = LayerMask.NameToLayer("MyHitPercentUI");
 
+            // スコアリストに追加
+            ScoreList.Add(new PlayerScore() { ConnectionId = user.ConnectionId });
+            gameUIManager.AddPlayerToScoreBoad(user.ConnectionId);
+
             return;
         }
 
@@ -353,6 +373,10 @@ public class GameManager : MonoBehaviour {
         // フィールドで保持
         UserDataAndObject userDataAndObject = new UserDataAndObject() { joinedData = user, playerObject = characterObject };
         CharacterList.Add(user.ConnectionId, userDataAndObject);
+
+        // スコアリストに追加
+        ScoreList.Add(new PlayerScore() { ConnectionId = user.ConnectionId });
+        gameUIManager.AddPlayerToScoreBoad(user.ConnectionId);
 
         Debug.Log("接続ID : " + user.ConnectionId + ", ユーザーID : " + user.UserData.Id + ", ユーザー名 : " + user.UserData.Display_Name + ", 参加順番 : " + user.JoinOrder);
     }
@@ -372,6 +396,10 @@ public class GameManager : MonoBehaviour {
             myCharacter.name = "Player_" + joinOrder;
             CharacterList[mySelf.ConnectionId].playerObject.name = "Player_" + joinOrder;
         }
+
+        // スコアリストから削除
+        ScoreList.Remove(ScoreList.First(ps=>ps.ConnectionId == connectionId));
+        gameUIManager.DeletePlayerFromScoreBoad(connectionId);
 
         Destroy(CharacterList[connectionId].playerObject);
         DOTween.Kill(CharacterList[connectionId]);
@@ -396,6 +424,12 @@ public class GameManager : MonoBehaviour {
         Debug.Log("ゲーム終了");
         IsGameStartShared = false;
         serverAsyncCTS.Cancel();
+
+        // マウスカーソルを表示
+        ShowMouseCursor();
+
+        // ロビーシーンに戻る
+        SceneManager.LoadScene("LobyScene");
     }
 
     /// <summary>
@@ -599,6 +633,11 @@ public class GameManager : MonoBehaviour {
         // キャラクターを削除
         Destroy(myCharacter);
 
+        // スコアを増やす
+        AddScore(killedPlayerConnectionId, 1);
+        // スコアを減らす
+        SubScore(mySelf.ConnectionId, 1);
+
         // サーバーに送信
         await RoomModel.Instance.DeathPlayerAsync(killedPlayerConnectionId);
 
@@ -616,6 +655,11 @@ public class GameManager : MonoBehaviour {
     private void OnDeadPlayer(Guid connectionId, Guid killedPlayerConnectionId) {
         // キャラクターを削除
         Destroy(CharacterList[connectionId].playerObject);
+
+        // スコアを増やす
+        AddScore(killedPlayerConnectionId,1);
+        // スコアを減らす
+        SubScore(connectionId,1);
     }
 
     /// <summary>
@@ -630,5 +674,21 @@ public class GameManager : MonoBehaviour {
         // ヒットパーセントを変更
         PlayerManager playerManager = CharacterList[connectionId].playerObject.GetComponent<PlayerManager>();
         playerManager.HitPercent = value;
+    }
+
+    /// <summary>
+    /// スコアを増やす
+    /// </summary>
+    public void AddScore(Guid connectionId, int value) {
+        ScoreList.First(ps => ps.ConnectionId == connectionId).Score += value;
+        ScoreList = ScoreList.OrderBy(ps => -ps.Score).ToList();
+    }
+
+    /// <summary>
+    /// スコアを減らす
+    /// </summary>
+    public void SubScore(Guid connectionId, int value) {
+        ScoreList.First(ps => ps.ConnectionId == connectionId).Score -= value;
+        ScoreList = ScoreList.OrderBy(ps => -ps.Score).ToList();
     }
 }

@@ -6,6 +6,7 @@ using MagicOnion.Client;
 using realtime_game.Shared.Interfaces.StreamingHubs;
 using realtime_game.Shared.Models.Entities;
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEditor.MemoryProfiler;
 using UnityEngine;
@@ -486,7 +487,16 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
 
         return null;
     }
+    /// <summary>
+    /// (途中参加用)プレイヤーのステータスを取得
+    /// </summary>
+    public async UniTask<Dictionary<Guid, UserBattleData>> GetUserBattleDataAsync() {
+        if(roomHub != null) {
+            return await roomHub.GetUserBattleDataAsync();
+        }
 
+        return null;
+    }
 
 
     /// <summary>

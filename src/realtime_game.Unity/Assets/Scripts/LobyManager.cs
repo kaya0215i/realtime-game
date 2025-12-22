@@ -502,6 +502,10 @@ public class LobyManager : MonoBehaviour {
     /// ロビーに帰ってきたとき通知
     /// </summary>
     public void OnReturnedLobyRoomUser(Guid connectionId) {
+        if (!LobyUserList.ContainsKey(connectionId)) {
+            return;
+        }
+
         LobyUserList[connectionId].joinedData.TeamUser.IsPlaying = false;
 
         // チームにいたときは
