@@ -326,9 +326,6 @@ public class LobyManager : MonoBehaviour {
 
         // マッチングボタン設定
         lobyUIManager.readyBtn.SetActive(true);
-
-        // UIを更新
-        lobyUIManager.UpdateUI();
     }
 
     /// <summary>

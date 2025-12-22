@@ -415,6 +415,10 @@ namespace realtime_game.Server.StreamingHubs {
                 if (roomContext.Value.Name == "Loby") {
                     continue;
                 }
+                // ゲームが終わってたら無視
+                if (roomContext.Value.InGameData.isGameSet) {
+                    continue;
+                }
 
                 // チーム全員が入れるか確認
                 if (10 - roomContext.Value.RoomUserDataList.Count() >= teamMember.Value.Count()) {
@@ -606,6 +610,7 @@ namespace realtime_game.Server.StreamingHubs {
         /// ゲーム終了
         /// </summary>
         public Task GameEndAsync() {
+            this._roomContext.InGameData.isGameSet = true;
             this._roomContext.InGameData.isGameStart = false;
 
             // ゲーム終了通知

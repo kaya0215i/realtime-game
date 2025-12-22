@@ -1,4 +1,5 @@
 using Cysharp.Threading.Tasks;
+using DG.Tweening.Core.Easing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,6 +10,7 @@ using UnityEngine;
 using static PlayerManager;
 
 public class PlayerController : MonoBehaviour {
+    private GameManager gameManager;
     private PlayerManager playerManager;
     private Rigidbody myRb;
 
@@ -31,6 +33,8 @@ public class PlayerController : MonoBehaviour {
 
     // プレイヤーのシネマシンカメラ
     [SerializeField] public CinemachineCamera cinemachineCamera;
+    // リザルト用シネマシンカメラ
+    [SerializeField] public CinemachineCamera resultCinemachineCamera;
 
     // プレイヤーフォローカメラ
     private CinemachineFollow cinemachineFollow;
@@ -78,6 +82,7 @@ public class PlayerController : MonoBehaviour {
     private bool isReloading = false;
 
     private void Start() {
+        gameManager = GameObject.Find("GameManager").GetComponent<GameManager>();
         playerManager = this.GetComponent<PlayerManager>();
         myRb = this.GetComponent<Rigidbody>();
         cinemachineFollow = cinemachineCamera.GetComponent<CinemachineFollow>();
@@ -93,10 +98,18 @@ public class PlayerController : MonoBehaviour {
     }
 
     private void FixedUpdate() {
+        if (!gameManager.IsPlaying) {
+            return;
+        }
+
         Movement();
     }
 
     private void Update() {
+        if (!gameManager.IsPlaying) {
+            return;
+        }
+
         SetPlayerCameraMode();
 
         if (!playerManager.IsOwner()) {

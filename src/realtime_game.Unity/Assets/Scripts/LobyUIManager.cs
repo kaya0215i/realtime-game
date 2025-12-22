@@ -1,3 +1,4 @@
+using Cysharp.Threading.Tasks;
 using realtime_game.Shared.Models.Entities;
 using System;
 using System.Collections.Generic;
@@ -28,6 +29,7 @@ public class LobyUIManager : MonoBehaviour {
     // フレンドリクエスト用
     [SerializeField] private GameObject friendRequestPrefab;
     [SerializeField] private Transform friendRequestListScrollViewContent;
+    private Dictionary<int, FriendList> friendList = new Dictionary<int, FriendList>();
 
     // チーム招待用
     [SerializeField] private GameObject inviteNotificationPrefab;
@@ -48,6 +50,9 @@ public class LobyUIManager : MonoBehaviour {
     // 準備状態
     private bool isReady = false;
 
+    // フレンドリスト更新タイマー
+    private float updateFriendListTimer = 0;
+
     private void Start() {
         // チームに招待通知登録
         RoomModel.Instance.OnInvitedTeamUser += OnInvitedTeamUser;
@@ -55,7 +60,7 @@ public class LobyUIManager : MonoBehaviour {
         RoomModel.Instance.OnIsReadyedStatusUser += OnIsReadyedStatusUser;
     }
 
-    private void Update() {
+    private async void Update() {
         if(Input.GetKeyDown(KeyCode.F)) {
             string textListLog = "{\n";
             foreach (var textList in playerStatusTextList) {
@@ -67,6 +72,13 @@ public class LobyUIManager : MonoBehaviour {
             textListLog += "}\n";
 
             Debug.Log(textListLog);
+        }
+
+        updateFriendListTimer += Time.deltaTime;
+        if (updateFriendListTimer >= 0.2f) {
+            updateFriendListTimer = 0;
+            // UIを更新
+            await GetFriendToList();
         }
     }
 
@@ -177,8 +189,6 @@ public class LobyUIManager : MonoBehaviour {
         else {
             friendListScrollView.SetActive(true);
             findUserPanel.SetActive(false);
-            // フレンドリストを表示
-            GetFriendToList();
         }
     }
 
@@ -198,14 +208,6 @@ public class LobyUIManager : MonoBehaviour {
     }
 
     /// <summary>
-    /// UIを更新
-    /// </summary>
-    public void UpdateUI() {
-        GetFriendToList();
-        GetFriendRequestToList();
-    }
-
-    /// <summary>
     /// 退出ボタン切替
     /// </summary>
     public void SwitchActiveLeaveBtn(bool value) {
@@ -215,66 +217,101 @@ public class LobyUIManager : MonoBehaviour {
     /// <summary>
     /// フレンドを取得してリスト表示
     /// </summary>
-    public async void GetFriendToList() {
-        // 要素削除
-        foreach (Transform child in friendListScrollViewContent) {
-            Destroy(child.gameObject);
-        }
-
+    private async UniTask GetFriendToList() {
         // フレンドを取得
         List<User> users = await UserModel.Instance.GetFriendInfoAsync();
 
         // フレンドリストを生成
         foreach (User user in users) {
-            GameObject objUI = Instantiate(friendPrefab, Vector3.zero, Quaternion.identity, friendListScrollViewContent);
+            if (!friendList.ContainsKey(user.Id)) {
+                GameObject objUI = Instantiate(friendPrefab, Vector3.zero, Quaternion.identity, friendListScrollViewContent);
+                // フレンドリストに追加
+                friendList.Add(user.Id, new FriendList() { uiObject = objUI });
+            }
+            else {
+                if (friendList[user.Id].isInvite) {
+                    friendList[user.Id].inviteCooltimer += Time.deltaTime;
+
+                    if (friendList[user.Id].inviteCooltimer >= 0.1f) {
+                        friendList[user.Id].inviteCooltimer = 0;
+                        friendList[user.Id].isInvite = false;
+                    }
+                }
+            }
+
             // ユーザー名を設定
-            Text userName = objUI.GetComponentsInChildren<Text>(true).First(text => text.gameObject.name == "UserName");
+            Text userName = friendList[user.Id].uiObject.GetComponentsInChildren<Text>(true).First(text => text.gameObject.name == "UserName");
             userName.text = user.Display_Name;
 
             // ステータス表示
-            Text userStatus = objUI.GetComponentsInChildren<Text>(true).First(text => text.gameObject.name == "StatusText");
+            Text userStatus = friendList[user.Id].uiObject.GetComponentsInChildren<Text>(true).First(text => text.gameObject.name == "StatusText");
             if (lobyManager.IsOnline(user.Id)) {
                 userStatus.text = "●オンライン";
                 userStatus.color = Color.green;
 
-                // 送り先のコネクションIDを取得
+                // ユーザーのコネクションIDを取得
                 Guid connectionId = lobyManager.GetConnectionId(user.Id);
 
                 // ボタンのイベントを設定
-                Button inviteBtn = objUI.GetComponentInChildren<Button>(true);
+                Button inviteBtn = friendList[user.Id].uiObject.GetComponentInChildren<Button>(true);
 
                 // フレンド
                 var friend = lobyManager.LobyUserList.FirstOrDefault(userList => userList.Value.joinedData.UserData.Id == user.Id).Value;
 
                 // チームにそのプレイヤーがいたら
                 if (lobyManager.InTeamUser(user.Id)) {
-                    // ボタンを削除
-                    inviteBtn = objUI.GetComponentInChildren<Button>(true);
-                    Destroy(inviteBtn.gameObject);
+                    // ボタンを非表示
+                    inviteBtn = friendList[user.Id].uiObject.GetComponentInChildren<Button>(true);
+                    inviteBtn.gameObject.SetActive(false);
                     // テキストに表示
-                    Text teamStatus = objUI.GetComponentsInChildren<Text>(true).First(text => text.gameObject.name == "TeamStatusText");
+                    Text teamStatus = friendList[user.Id].uiObject.GetComponentsInChildren<Text>(true).First(text => text.gameObject.name == "TeamStatusText");
                     teamStatus.text = "チーム内";
                     teamStatus.color = Color.green;
+
+                    friendList[user.Id].inviteCooltimer = 0;
+                    friendList[user.Id].isInvite = false;
                 }
                 // プレイ中だったら
-                else if(friend != null &&
+                else if (friend != null &&
                         friend.joinedData.TeamUser.IsPlaying) {
-                    // ボタンを削除
-                    inviteBtn = objUI.GetComponentInChildren<Button>(true);
-                    Destroy(inviteBtn.gameObject);
+                    // ボタンを非表示
+                    inviteBtn = friendList[user.Id].uiObject.GetComponentInChildren<Button>(true);
+                    inviteBtn.gameObject.SetActive(false);
                     // テキストに表示
-                    Text teamStatus = objUI.GetComponentsInChildren<Text>(true).First(text => text.gameObject.name == "TeamStatusText");
+                    Text teamStatus = friendList[user.Id].uiObject.GetComponentsInChildren<Text>(true).First(text => text.gameObject.name == "TeamStatusText");
                     teamStatus.text = "プレイ中";
                     teamStatus.color = Color.blue;
                 }
+                // 招待中だったら
+                else if (friendList[user.Id].isInvite) {
+                    // ボタンを非表示
+                    inviteBtn = friendList[user.Id].uiObject.GetComponentInChildren<Button>(true);
+                    inviteBtn.gameObject.SetActive(false);
+                    // テキストに表示
+                    Text teamStatus = friendList[user.Id].uiObject.GetComponentsInChildren<Text>(true).First(text => text.gameObject.name == "TeamStatusText");
+                    teamStatus.text = "招待中";
+                    teamStatus.color = Color.cyan;
+                }
                 else {
+                    // ボタンを表示
+                    inviteBtn.gameObject.SetActive(true);
+
+                    // テキストに表示
+                    Text teamStatus = friendList[user.Id].uiObject.GetComponentsInChildren<Text>(true).First(text => text.gameObject.name == "TeamStatusText");
+                    teamStatus.text = "";
+
+                    // 招待ボタンのイベントを設定
+                    inviteBtn.onClick.RemoveAllListeners();
                     inviteBtn.onClick.AddListener(async () => {
                         // チームに招待
                         await RoomModel.Instance.InviteTeamFriendAsync(connectionId);
-                        Destroy(inviteBtn.gameObject);
+                        inviteBtn.gameObject.SetActive(false);
+
+                        // 招待中に
+                        friendList[user.Id].isInvite = true;
 
                         // テキストに表示
-                        Text teamStatus = objUI.GetComponentsInChildren<Text>(true).First(text => text.gameObject.name == "TeamStatusText");
+                        Text teamStatus = friendList[user.Id].uiObject.GetComponentsInChildren<Text>(true).First(text => text.gameObject.name == "TeamStatusText");
                         teamStatus.text = "招待中";
                         teamStatus.color = Color.cyan;
                     });
@@ -284,9 +321,9 @@ public class LobyUIManager : MonoBehaviour {
                 userStatus.text = "×オフライン";
                 userStatus.color = Color.red;
 
-                // ボタンを削除
-                Button inviteBtn = objUI.GetComponentInChildren<Button>(true);
-                Destroy(inviteBtn.gameObject);
+                // ボタンを非表示
+                Button inviteBtn = friendList[user.Id].uiObject.GetComponentInChildren<Button>(true);
+                inviteBtn.gameObject.SetActive(false);
             }
         }
     }
@@ -360,7 +397,7 @@ public class LobyUIManager : MonoBehaviour {
     /// <summary>
     /// フレンドリクエストを取得してリスト表示
     /// </summary>
-    public async void GetFriendRequestToList() {
+    private async void GetFriendRequestToList() {
         // 要素削除
         foreach (Transform child in friendRequestListScrollViewContent) {
             Destroy(child.gameObject);

@@ -1,5 +1,3 @@
-using MessagePack.Resolvers;
-using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,6 +7,13 @@ using UnityEngine.UI;
 
 public class GameUIManager : MonoBehaviour {
     [SerializeField] private GameManager gameManager;
+
+    // ゲームUI
+    [SerializeField] private GameObject gameUI;
+    // プレイヤーUI
+    [SerializeField] private GameObject playerUI;
+    // リザルトUI
+    [SerializeField] private GameObject resultUI;
 
     // ゲームのスタートタイマーテキスト
     [SerializeField] private Text gameStartTimerText; 
@@ -40,11 +45,18 @@ public class GameUIManager : MonoBehaviour {
     [NonSerialized] public int reSpownCoolTimeCountDown = 4;
 
     // スコアボード用
+    [SerializeField] private TextMeshProUGUI rankingText;
     [SerializeField] private GameObject scoreBoadHeader;
     [SerializeField] private GameObject scoreBoadPanel;
     [SerializeField] private GameObject scorePrefab;
     [SerializeField] private Transform scoreParent;
     private Dictionary<Guid, GameObject> scoreObjectUIList = new Dictionary<Guid, GameObject>();
+
+    // リザルト用
+    [SerializeField] private GameObject resultRankingPrefab;
+    [SerializeField] private Transform resultRankingParent;
+
+    [SerializeField] private GameObject gameSetText;
 
     private void Update() {
         // ゲームスタート中
@@ -246,9 +258,16 @@ public class GameUIManager : MonoBehaviour {
     /// スコアボードを更新
     /// </summary>
     public void UpdateScoreBoad() {
+        string myRnkText = "";
         foreach (var text in scoreObjectUIList) {
             Text[] texts = text.Value.GetComponentsInChildren<Text>(true);
+
+            if (text.Key == gameManager.mySelf.ConnectionId) {
+                myRnkText = (gameManager.ScoreList.FindIndex(ps => ps.ConnectionId == text.Key) + 1).ToString();
+            }
+            
             texts.First(text => text.gameObject.name == "RankingText").text = (gameManager.ScoreList.FindIndex(ps => ps.ConnectionId == text.Key) + 1).ToString();
+
             if (gameManager.CharacterList[text.Key].playerObject != null) {
                 texts.First(text => text.gameObject.name == "PlayerHitPercentText").text = gameManager.CharacterList[text.Key].playerObject.GetComponent<PlayerManager>().HitPercent + "%";
             }
@@ -259,6 +278,23 @@ public class GameUIManager : MonoBehaviour {
 
             text.Value.transform.SetSiblingIndex(gameManager.ScoreList.FindIndex(ps => ps.ConnectionId == text.Key));
         }
+
+        // ヘッダーのランキング反映
+        if (myRnkText == "1") {
+            myRnkText += "st";
+        }
+        else if (myRnkText == "2") {
+            myRnkText += "nd";
+
+        }
+        else if (myRnkText == "3") {
+            myRnkText += "rd";
+
+        }
+        else {
+            myRnkText += "th";
+        }
+        rankingText.text = myRnkText;
     }
 
     /// <summary>
@@ -269,5 +305,52 @@ public class GameUIManager : MonoBehaviour {
         scoreObjectUIList.Remove(connectionId);
 
         UpdateScoreBoad();
+    }
+
+    /// <summary>
+    /// ゲームセット
+    /// </summary>
+    public void GameSetUI() {
+        gameUI.SetActive(false);
+        playerUI.SetActive(false);
+        scoreBoadPanel.SetActive(false);
+        gameTimerText.gameObject.SetActive(false);
+
+        gameSetText.SetActive(true);
+    }
+
+    /// <summary>
+    /// ゲームリザルトUI表示
+    /// </summary>
+    public void GameResultUI() {
+        gameSetText.GetComponent<RectTransform>().position = new Vector3(-400, 300, 0);
+        resultUI.SetActive(true);
+
+        // スコアを生成
+        int index = 1;
+        foreach (var item in gameManager.ScoreList) {
+            GameObject createdUI = Instantiate(resultRankingPrefab, parent: resultRankingParent);
+            TextMeshProUGUI rankingText = createdUI.GetComponentInChildren<TextMeshProUGUI>();
+            Text[] texts = createdUI.GetComponentsInChildren<Text>();
+
+            string rank = "";
+            if (index == 1) {
+                rank = index + "st";
+            }
+            else if(index == 2) {
+                rank = index + "nd";
+            }
+            else if(index == 3) {
+                rank = index + "rd";
+            }
+            else {
+                rank = index + "th";
+            }
+
+            rankingText.text = rank;
+            texts.First(_ => _.gameObject.name == "PlayerName").text = gameManager.CharacterList[item.ConnectionId].joinedData.UserData.Display_Name;
+            texts.First(_ => _.gameObject.name == "ScoreText").text = item.Score.ToString();
+            index++;
+        }
     }
 }

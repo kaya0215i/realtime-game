@@ -43,7 +43,7 @@ public class GameManager : MonoBehaviour {
     [NonSerialized] public JoinedUser mySelf = new JoinedUser(); // 自分のユーザー情報を保存
     [NonSerialized] public bool isJoined = false;
 
-    private float startTime = 3f;
+    private float startTime = 30f;
     public float StartTimer { get; private set; }
 
     // サーバー通信用CancellationTokenSource
@@ -57,6 +57,15 @@ public class GameManager : MonoBehaviour {
 
     // プレイヤーのスコアリスト
     public List<PlayerScore> ScoreList { get; private set; } = new List<PlayerScore>();
+
+    // ゲームプレイ可能か
+    public bool IsPlaying { get; private set; } = true;
+
+    // 勝者のコネクションID
+    private Guid winnerConnectionId = Guid.Empty;
+
+    private bool isSendStartAsync = false;
+    private bool isSendEndAsync = false;
 
     /*
      * 共有用フィールド
@@ -184,6 +193,14 @@ public class GameManager : MonoBehaviour {
                 "ルームの人数 : " + CharacterList.Count + "\n" +
                 "ルームのプレイヤーのリスト \n" + teamPlayerInfo
                 );
+
+            string scoreList = "";
+            foreach ( var item in ScoreList ) {
+                scoreList += item.ConnectionId + "\n";
+                scoreList += item.Score + "\n";
+                scoreList += "\n";
+            }
+            Debug.Log(scoreList);
         }
 
         // マウスカーソルを表示非表示
@@ -220,7 +237,10 @@ public class GameManager : MonoBehaviour {
         }
 
         // スタートタイマーが0になったら
-        if (StartTimer <= 0) {
+        if (StartTimer <= 0 &&
+            !isSendStartAsync) {
+            isSendStartAsync = true;
+
             StartTimer = startTime;
             await RoomModel.Instance.GameStartAsync();
         }
@@ -234,7 +254,10 @@ public class GameManager : MonoBehaviour {
         await SendServerAsync();
 
         // タイマーが0になったらゲーム終了
-        if (gameTimerShared <= 0) {
+        if (gameTimerShared <= 0 &&
+            !isSendEndAsync) {
+            isSendEndAsync = true;
+
             await RoomModel.Instance.GameEndAsync();
         }
     }
@@ -378,6 +401,8 @@ public class GameManager : MonoBehaviour {
         ScoreList.Add(new PlayerScore() { ConnectionId = user.ConnectionId });
         gameUIManager.AddPlayerToScoreBoad(user.ConnectionId);
 
+        ScoreList = ScoreList.OrderBy(ps => -ps.Score).ToList();
+
         Debug.Log("接続ID : " + user.ConnectionId + ", ユーザーID : " + user.UserData.Id + ", ユーザー名 : " + user.UserData.Display_Name + ", 参加順番 : " + user.JoinOrder);
     }
 
@@ -428,8 +453,12 @@ public class GameManager : MonoBehaviour {
         // マウスカーソルを表示
         ShowMouseCursor();
 
-        // ロビーシーンに戻る
-        SceneManager.LoadScene("LobyScene");
+        IsPlaying = false;
+
+        GameResult();
+
+        //// ロビーシーンに戻る
+        //SceneManager.LoadScene("LobyScene");
     }
 
     /// <summary>
@@ -574,6 +603,8 @@ public class GameManager : MonoBehaviour {
             killedPlyaerCamera.Priority = 0;
         }
 
+        HideMouseCursor();
+
         // ゲームUIの設定
         gameUIManager.isDeath = false;
 
@@ -612,6 +643,8 @@ public class GameManager : MonoBehaviour {
     /// プレイヤーの死亡処理
     /// </summary>
     public async void Dead(Guid killedPlayerConnectionId) {
+        ShowMouseCursor();
+
         // ゲームUIの設定
         gameUIManager.reSpownCoolTimer = 1;
         gameUIManager.reSpownCoolTimeCountDown = 4;
@@ -690,5 +723,33 @@ public class GameManager : MonoBehaviour {
     public void SubScore(Guid connectionId, int value) {
         ScoreList.First(ps => ps.ConnectionId == connectionId).Score -= value;
         ScoreList = ScoreList.OrderBy(ps => -ps.Score).ToList();
+    }
+
+    /// <summary>
+    /// ゲームリザルト表示
+    /// </summary>
+    private async void GameResult() {
+        gameUIManager.GameSetUI();
+
+        await FinalWinner();
+
+        gameUIManager.GameResultUI();
+
+        if (myCharacter != null) {
+            myCharacter.transform.eulerAngles = Vector3.zero;
+            playerController.resultCinemachineCamera.Priority = 100;
+            playerController._head.eulerAngles = Vector3.zero;
+        }
+    }
+
+    /// <summary>
+    /// 勝者確定
+    /// </summary>
+    private async UniTask FinalWinner() {
+        // 少し待ってから確定
+        await UniTask.Delay(TimeSpan.FromSeconds(3));
+
+        ScoreList = ScoreList.OrderBy(ps => -ps.Score).ToList();
+        winnerConnectionId = ScoreList[0].ConnectionId;
     }
 }

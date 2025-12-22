@@ -62,6 +62,10 @@ public class PlayerManager : MonoBehaviour {
     }
 
     private async void Update() {
+        if (!gameManager.IsPlaying) {
+            return;
+        }
+
         if (!IsOwner()) {
             // ƒJƒƒ‰î•ñ‚ğ”½‰f
             playerController._head.transform.DORotateQuaternion(cameraRotate, 0.1f).SetEase(Ease.InOutQuad);
