@@ -142,7 +142,7 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         /// <summary>
         /// プレイヤー死亡
         /// </summary>
-        Task DeathPlayerAsync(Guid killedPlayerConnectionId);
+        Task DeathPlayerAsync(Guid killerPlayerConnectionId, int deathCauseNum);
 
         /// <summary>
         /// プレイヤーのヒットパーセント

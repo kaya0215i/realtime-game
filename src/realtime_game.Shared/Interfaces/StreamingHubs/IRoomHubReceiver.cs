@@ -118,7 +118,7 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         /// <summary>
         /// プレイヤー死亡通知
         /// </summary>
-        public void OnDeathPlayer(Guid connectionId, Guid killedPlayerConnectionId);
+        public void OnDeathPlayer(Guid connectionId, Guid killerPlayerConnectionId, int deathCauseNum);
 
         /// <summary>
         /// プレイヤーのヒットパーセント通知

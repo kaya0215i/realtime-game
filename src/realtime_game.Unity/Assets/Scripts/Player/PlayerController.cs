@@ -1,18 +1,20 @@
 using Cysharp.Threading.Tasks;
-using DG.Tweening.Core.Easing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using Unity.Cinemachine;
-using Unity.Multiplayer.Center.NetcodeForGameObjectsExample.DistributedAuthority;
 using UnityEngine;
-using static PlayerManager;
+using UnityEngine.InputSystem;
+using static CharacterData;
 
 public class PlayerController : MonoBehaviour {
     private GameManager gameManager;
     private PlayerManager playerManager;
     private Rigidbody myRb;
+
+    // プレイヤーの入力
+    private PlayerInputActions playerInputActions;
 
     private NetworkObject myInteractedObj;
 
@@ -94,7 +96,15 @@ public class PlayerController : MonoBehaviour {
         // キャラクターのタイプをもとに設定
         SetPlayerCharacterType();
 
+        // インプットアクションを有効に
+        playerInputActions = new PlayerInputActions();
+        playerInputActions.Enable();
+
         bulletAmount = maxBulletAmount;
+    }
+
+    private void OnDestroy() {
+        playerInputActions.Disable();
     }
 
     private void FixedUpdate() {
@@ -116,7 +126,7 @@ public class PlayerController : MonoBehaviour {
             return;
         }
 
-        InoutMoveValue();
+        InputMoveValue();
 
         Look();
 
@@ -184,24 +194,43 @@ public class PlayerController : MonoBehaviour {
     /// <summary>
     /// 移動量取得
     /// </summary>
-    private void InoutMoveValue() {
-        horizontal = Input.GetAxis("Horizontal") * moveSpeed;
-        vertical = Input.GetAxis("Vertical") * moveSpeed;
+    private void InputMoveValue() {
+        horizontal = playerInputActions.Player.Move.ReadValue<Vector2>().x * moveSpeed * Time.deltaTime;
+        vertical = playerInputActions.Player.Move.ReadValue<Vector2>().y * moveSpeed * Time.deltaTime;
     }
 
     /// <summary>
     /// 移動処理
     /// </summary>
     private void Movement() {
-        this.transform.Translate(horizontal * Time.fixedDeltaTime, 0, vertical * Time.fixedDeltaTime);
+        this.transform.Translate(horizontal, 0, vertical);
     }
 
     /// <summary>
     /// 視点処理
     /// </summary>
     private void Look() {
-        Vector2 mouseInput = new Vector2(Input.GetAxis("Mouse X") * _sensX,
-            Input.GetAxis("Mouse Y") * _sensY);
+        bool touchLookActive = true;
+        if (playerInputActions.Player.TouchStart.IsPressed()) {
+            // primaryTouch の現在位置を取得
+            var ts = Touchscreen.current;
+            if (ts != null && ts.primaryTouch != null) {
+                Vector2 startPos = ts.primaryTouch.position.ReadValue();
+                Debug.Log(startPos);
+                // タッチを始めた場所が右半分だったら
+                touchLookActive = (startPos.x >= Screen.width * 0.5f);
+            }
+            else {
+                touchLookActive = false;
+            }
+        }
+
+        if (!touchLookActive) {
+            return;
+        }
+
+        Vector2 mouseInput = new Vector2(playerInputActions.Player.Look.ReadValue<Vector2>().x * _sensX * Time.deltaTime,
+            playerInputActions.Player.Look.ReadValue<Vector2>().y * _sensY * Time.deltaTime);
 
         _xRotation -= mouseInput.y;
         _yRotation += mouseInput.x;
@@ -223,7 +252,7 @@ public class PlayerController : MonoBehaviour {
     /// ジャンプ処理
     /// </summary>
     private void Jump() {
-        if (Input.GetKeyDown(KeyCode.Space)) {
+        if (playerInputActions.Player.Jump.triggered) {
             if (IsField()) {
                 myRb.AddForce(Vector3.up * jumpValue, ForceMode.Impulse);
             }
@@ -269,8 +298,7 @@ public class PlayerController : MonoBehaviour {
 
         switch (playerManager.characterType) {
             case PLAYER_CHARACTER_TYPE.AssaultRifle:
-            case PLAYER_CHARACTER_TYPE.SniperRifle:
-                if (Input.GetMouseButton(0)) {
+                if (playerInputActions.Player.Shot.IsPressed()) {
                     // リロード中だったらタスクをキャンセル
                     if (isReloading) {
                         reloadCTS.Cancel();
@@ -287,7 +315,7 @@ public class PlayerController : MonoBehaviour {
                 break;
 
             case PLAYER_CHARACTER_TYPE.ShotGun:
-                if (Input.GetMouseButtonDown(0)) {
+                if (playerInputActions.Player.Shot.triggered) {
                     // リロード中だったらタスクをキャンセル
                     if (isReloading) {
                         reloadCTS.Cancel();
@@ -301,6 +329,23 @@ public class PlayerController : MonoBehaviour {
                         GameObject createdBullet = Instantiate(bulletList.First(_ => _.name == bulletName), Camera.main.transform.position + Camera.main.transform.forward, _head.transform.rotation, bulletParent);
                         BulletController createdBulletController = createdBullet.GetComponent<BulletController>();
                     }
+                }
+
+                break;
+
+            case PLAYER_CHARACTER_TYPE.SniperRifle:
+                if (playerInputActions.Player.Shot.triggered) {
+                    // リロード中だったらタスクをキャンセル
+                    if (isReloading) {
+                        reloadCTS.Cancel();
+                        isReloading = false;
+                    }
+
+                    bulletAmount -= 1;
+                    shotCoolTimer = 0;
+
+                    GameObject createdBullet = Instantiate(bulletList.First(_ => _.name == bulletName), Camera.main.transform.position + Camera.main.transform.forward, _head.transform.rotation, bulletParent);
+                    BulletController createdBulletController = createdBullet.GetComponent<BulletController>();
                 }
 
                 break;
@@ -321,20 +366,20 @@ public class PlayerController : MonoBehaviour {
             return;
         }
 
-        if (Input.GetKeyDown(KeyCode.R)) {
+        if (playerInputActions.Player.Reload.triggered) {
             // キャラクターのタイプごとにリロード方法を変更
             switch (playerManager.characterType) {
                 case PLAYER_CHARACTER_TYPE.AssaultRifle:
                 case PLAYER_CHARACTER_TYPE.SniperRifle:
                     // リロード中
-                    await ReloadingBullet();
+                    await ReloadingBullet().SuppressCancellationThrow();
 
                     break;
 
                 case PLAYER_CHARACTER_TYPE.ShotGun:
                     while (bulletAmount < maxBulletAmount) {
                         // リロード中
-                        await ReloadingBullet();
+                        await ReloadingBullet().SuppressCancellationThrow();
                     }
 
                     break;
@@ -354,7 +399,7 @@ public class PlayerController : MonoBehaviour {
         uiManager.UpdateShotCoolTimeImage(0);
 
         // リロード時間分待つ
-        await UniTask.Delay(TimeSpan.FromSeconds(reloadTime), cancellationToken: reloadCTS.Token).SuppressCancellationThrow();
+        await UniTask.Delay(TimeSpan.FromSeconds(reloadTime), cancellationToken: reloadCTS.Token);
         // リロードがキャンセルされたら
         if (reloadCTS.Token.IsCancellationRequested) {
             isReloading = false;

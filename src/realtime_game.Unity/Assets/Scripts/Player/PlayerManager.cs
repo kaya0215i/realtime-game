@@ -1,11 +1,11 @@
+using Cysharp.Threading.Tasks;
 using DG.Tweening;
 using System;
-using System.Threading.Tasks;
+using System.Threading;
 using TMPro;
-using Unity.VisualScripting;
 using UnityEngine;
-using UnityEngine.UI;
-using UnityEngine.UIElements;
+using static CharacterData;
+using static GameManager;
 
 public class PlayerManager : MonoBehaviour {
     private GameManager gameManager;
@@ -26,14 +26,6 @@ public class PlayerManager : MonoBehaviour {
     // プレイヤー視点カメラのRotate
     [NonSerialized] public Quaternion cameraRotate;
 
-    // キャラクタータイプの列挙型
-    public enum PLAYER_CHARACTER_TYPE {
-        None,
-        AssaultRifle,
-        ShotGun,
-        SniperRifle,
-    }
-
     // キャラクターのタイプ
     public PLAYER_CHARACTER_TYPE characterType = PLAYER_CHARACTER_TYPE.None;
 
@@ -41,7 +33,15 @@ public class PlayerManager : MonoBehaviour {
     private PLAYER_CHARACTER_TYPE characterTypeObserver = PLAYER_CHARACTER_TYPE.None;
 
     // 最後に自分に弾を当てたプレイヤーのコネクションID
-    private Guid lastHitFromCreatedPlayerConnectionId = Guid.Empty;
+    private Guid lastHitPlayerConnectionId = Guid.Empty;
+
+    // 死因
+    private Death_Cause deathCause = Death_Cause.None;
+
+    private bool isStartReleseTimer = false;
+    // 解除処理用CancellationTokenSource
+    private CancellationTokenSource releseCTS = new CancellationTokenSource();
+
 
     // 頭上ヒットパーセントテキスト
     private TextMeshProUGUI headUpHitPercentText;
@@ -87,6 +87,9 @@ public class PlayerManager : MonoBehaviour {
             await RoomModel.Instance.UpdateUserTransformAsync(this.transform.position, this.transform.rotation, cameraRotate);
         }
 
+        // 自分のキャラクタータイプを取得
+        characterType = CharacterData.Instance.characterType;
+
         // プレイヤーのキャラクタータイプが変わったら
         if (characterTypeObserver != characterType) {
             characterTypeObserver = characterType;
@@ -96,6 +99,30 @@ public class PlayerManager : MonoBehaviour {
 
             await RoomModel.Instance.ChangeCharacterTypeAsync(characterType);
         }
+
+        if (lastHitPlayerConnectionId != Guid.Empty &&
+            !isStartReleseTimer) {
+            await ReleseLastHitConnectionId().SuppressCancellationThrow();
+        }
+    }
+
+    /// <summary>
+    /// 自分に当てたプレイヤーのコネクションIDを解除
+    /// </summary>
+    private async UniTask ReleseLastHitConnectionId() {
+        isStartReleseTimer = true;
+
+        // 10秒待つ
+        await UniTask.Delay(TimeSpan.FromSeconds(10), cancellationToken: releseCTS.Token);
+        // キャンセルされたら
+        if (releseCTS.Token.IsCancellationRequested) {
+            return;
+        }
+
+        lastHitPlayerConnectionId = Guid.Empty;
+        deathCause = Death_Cause.None;
+
+        isStartReleseTimer = false;
     }
 
     /// <summary>
@@ -139,10 +166,13 @@ public class PlayerManager : MonoBehaviour {
             // ゲームスタートしてたら
             if (gameManager.IsGameStartShared) {
                 // 自分に当てたプレイヤーのコネクションIDを保持
-                lastHitFromCreatedPlayerConnectionId = netObj.createrConnectionId;
+                lastHitPlayerConnectionId = netObj.createrConnectionId;
 
                 // ヒットパーセントを増やす
                 HitPercent += bulletController.AttackPower;
+
+                // 死因に設定
+                deathCause = Death_Cause.Shot;
 
                 // サーバーに送信
                 await RoomModel.Instance.HitPercentAsync(HitPercent);
@@ -162,7 +192,13 @@ public class PlayerManager : MonoBehaviour {
         if (other.gameObject.CompareTag("DeathArea")) {
             // ゲームスタートしてたら
             if (gameManager.IsGameStartShared) {
-                gameManager.Dead(lastHitFromCreatedPlayerConnectionId);
+                if (deathCause == Death_Cause.None) {
+                    deathCause = Death_Cause.Fall;
+                }
+
+                releseCTS.Cancel();
+
+                gameManager.Dead(lastHitPlayerConnectionId, deathCause);
             }
             else {
                 this.transform.position = Vector3.zero;

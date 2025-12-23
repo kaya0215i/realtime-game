@@ -1,8 +1,5 @@
-using System;
-using Unity.Multiplayer.Center.NetcodeForGameObjectsExample.DistributedAuthority;
-using Unity.VisualScripting;
 using UnityEngine;
-using static PlayerManager;
+using static CharacterData;
 
 public class BulletController : MonoBehaviour {
     private NetworkObject networkObject;

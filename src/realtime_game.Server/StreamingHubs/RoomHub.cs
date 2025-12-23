@@ -656,13 +656,13 @@ namespace realtime_game.Server.StreamingHubs {
         /// <summary>
         /// プレイヤー死亡
         /// </summary>
-        public Task DeathPlayerAsync(Guid killedPlayerConnectionId) {
+        public Task DeathPlayerAsync(Guid killerPlayerConnectionId, int deathCauseNum) {
             // スコアを反映
             this._roomContext.RoomUserDataList[this.ConnectionId].UserBattleData.Score -= 1;
-            this._roomContext.RoomUserDataList[killedPlayerConnectionId].UserBattleData.Score += 1;
+            this._roomContext.RoomUserDataList[killerPlayerConnectionId].UserBattleData.Score += 1;
 
             // 自分以外に通知
-            this._roomContext.Group.Except([this.ConnectionId]).OnDeathPlayer(this.ConnectionId, killedPlayerConnectionId);
+            this._roomContext.Group.Except([this.ConnectionId]).OnDeathPlayer(this.ConnectionId, killerPlayerConnectionId, deathCauseNum);
 
             return Task.CompletedTask;
         }

@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using TMPro;
 using UnityEngine;
+using UnityEngine.ProBuilder.Shapes;
 using UnityEngine.UI;
+using static GameManager;
 
 public class GameUIManager : MonoBehaviour {
     [SerializeField] private GameManager gameManager;
@@ -52,6 +54,12 @@ public class GameUIManager : MonoBehaviour {
     [SerializeField] private Transform scoreParent;
     private Dictionary<Guid, GameObject> scoreObjectUIList = new Dictionary<Guid, GameObject>();
 
+    // キルログ用
+    [SerializeField] private GameObject killLogPrefab;
+    [SerializeField] private Transform killLogParent;
+    [SerializeField] private DeathCauseSO deathCauseSO;
+    
+
     // リザルト用
     [SerializeField] private GameObject resultRankingPrefab;
     [SerializeField] private Transform resultRankingParent;
@@ -88,9 +96,11 @@ public class GameUIManager : MonoBehaviour {
             else {
                 // スコアボード表示非表示
                 if (Input.GetKeyDown(KeyCode.Tab)) {
+                    gameTimerText.gameObject.SetActive(false);
                     scoreBoadPanel.SetActive(true);
                 }
                 if (Input.GetKeyUp(KeyCode.Tab)) {
+                    gameTimerText.gameObject.SetActive(true);
                     scoreBoadPanel.SetActive(false);
                 }
 
@@ -212,6 +222,7 @@ public class GameUIManager : MonoBehaviour {
         // 自分を殺したプレイヤー名設定
         killerNameText.text = killerName;
 
+        gameTimerText.gameObject.SetActive(false);
         bulletAmountText.gameObject.SetActive(false);
         shotCoolTimeImage.gameObject.SetActive(false);
         hitPercentText.gameObject.SetActive(false);
@@ -226,9 +237,28 @@ public class GameUIManager : MonoBehaviour {
         // スコアボード表示
         scoreBoadHeader.SetActive(true);
 
+        gameTimerText.gameObject.SetActive(true);
         bulletAmountText.gameObject.SetActive(true);
         shotCoolTimeImage.gameObject.SetActive(true);
         hitPercentText.gameObject.SetActive(true);
+    }
+
+    /// <summary>
+    /// キルログにプレイヤーを追加
+    /// </summary>
+    public void AddKillLog(Guid connectionId, Guid killerPlayerConnectionId, Death_Cause deathCause) {
+        GameObject createdUI = Instantiate(killLogPrefab, parent: killLogParent);
+
+        // テキストを設定
+        Text[] texts = createdUI.GetComponentsInChildren<Text>(true);
+        texts.First(text => text.gameObject.name == "KillerNameText").text = gameManager.CharacterList[killerPlayerConnectionId].joinedData.UserData.Display_Name.ToString();
+        texts.First(text => text.gameObject.name == "DeathNameText").text = gameManager.CharacterList[connectionId].joinedData.UserData.Display_Name.ToString();
+
+        // 死因画像設定
+        Image image = createdUI.GetComponentsInChildren<Image>(true).First(text => text.gameObject.name == "DeathCauseImage");
+        image.sprite = deathCauseSO.deathCauseDataList.FirstOrDefault(_ => _.name == deathCause.ToString()).image;
+
+        Destroy(createdUI, 10);
     }
 
     /// <summary>
@@ -238,6 +268,7 @@ public class GameUIManager : MonoBehaviour {
         GameObject createdUI = Instantiate(scorePrefab, parent: scoreParent);
         scoreObjectUIList[connectionId] = createdUI;
 
+        // テキストを設定
         Text[] texts = createdUI.GetComponentsInChildren<Text>(true);
         texts.First(text => text.gameObject.name == "RankingText").text = "1";
         texts.First(text => text.gameObject.name == "PlayerNameText").text = gameManager.CharacterList[connectionId].joinedData.UserData.Display_Name;
@@ -331,7 +362,7 @@ public class GameUIManager : MonoBehaviour {
         foreach (var item in gameManager.ScoreList) {
             GameObject createdUI = Instantiate(resultRankingPrefab, parent: resultRankingParent);
             TextMeshProUGUI rankingText = createdUI.GetComponentInChildren<TextMeshProUGUI>();
-            Text[] texts = createdUI.GetComponentsInChildren<Text>();
+            Text[] texts = createdUI.GetComponentsInChildren<Text>(true);
 
             string rank = "";
             if (index == 1) {

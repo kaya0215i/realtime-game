@@ -6,16 +6,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using Unity.Cinemachine;
-using UnityEditor.MemoryProfiler;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.SocialPlatforms.Impl;
-using UnityEngine.UI;
+using static CharacterData;
 using static NetworkObject;
-using static PlayerManager;
-using static UnityEngine.Rendering.DebugUI;
 
 public class GameManager : MonoBehaviour {
     // プレイヤーを生成する親Transform
@@ -54,6 +49,12 @@ public class GameManager : MonoBehaviour {
 
     // 自分を殺したプレイヤーのCinemachineCamera
     private CinemachineCamera killedPlyaerCamera;
+    // 死因の列挙型
+    public enum Death_Cause {
+        None,
+        Fall,
+        Shot,
+    }
 
     // プレイヤーのスコアリスト
     public List<PlayerScore> ScoreList { get; private set; } = new List<PlayerScore>();
@@ -456,9 +457,6 @@ public class GameManager : MonoBehaviour {
         IsPlaying = false;
 
         GameResult();
-
-        //// ロビーシーンに戻る
-        //SceneManager.LoadScene("LobyScene");
     }
 
     /// <summary>
@@ -642,7 +640,7 @@ public class GameManager : MonoBehaviour {
     /// <summary>
     /// プレイヤーの死亡処理
     /// </summary>
-    public async void Dead(Guid killedPlayerConnectionId) {
+    public async void Dead(Guid killerPlayerConnectionId, Death_Cause deathCause) {
         ShowMouseCursor();
 
         // ゲームUIの設定
@@ -654,43 +652,49 @@ public class GameManager : MonoBehaviour {
         CinemachineBrain cinemachineBrain = Camera.main.GetComponent<CinemachineBrain>();
         cinemachineBrain.DefaultBlend = new(CinemachineBlendDefinition.Styles.EaseInOut, 2f);
 
-        if (killedPlayerConnectionId != Guid.Empty) {
+        if (killerPlayerConnectionId != Guid.Empty) {
             // 自分を殺したプレイヤーの視点になるように優先度を設定
-            killedPlyaerCamera = CharacterList[killedPlayerConnectionId].playerObject.GetComponent<PlayerController>().cinemachineCamera;
+            killedPlyaerCamera = CharacterList[killerPlayerConnectionId].playerObject.GetComponent<PlayerController>().cinemachineCamera;
             killedPlyaerCamera.Priority = 3;
         }
         else {
-            killedPlayerConnectionId = mySelf.ConnectionId;
+            killerPlayerConnectionId = mySelf.ConnectionId;
         }
+
+        // キルログに追加
+        gameUIManager.AddKillLog(mySelf.ConnectionId, killerPlayerConnectionId, deathCause);
 
         // キャラクターを削除
         Destroy(myCharacter);
 
         // スコアを増やす
-        AddScore(killedPlayerConnectionId, 1);
+        AddScore(killerPlayerConnectionId, 1);
         // スコアを減らす
         SubScore(mySelf.ConnectionId, 1);
 
         // サーバーに送信
-        await RoomModel.Instance.DeathPlayerAsync(killedPlayerConnectionId);
+        await RoomModel.Instance.DeathPlayerAsync(killerPlayerConnectionId, deathCause);
 
         // カメラの移動を元に戻す
         cinemachineBrain.DefaultBlend = new(CinemachineBlendDefinition.Styles.Cut, 0f);
 
         // デスカメラUIの表示
-        gameUIManager.ShowDeathCameraUI(CharacterList[killedPlayerConnectionId].joinedData.UserData.Display_Name);
+        gameUIManager.ShowDeathCameraUI(CharacterList[killerPlayerConnectionId].joinedData.UserData.Display_Name);
     }
 
     /// <summary>
     /// [サーバー通知]
     /// プレイヤー死亡通知
     /// </summary>
-    private void OnDeadPlayer(Guid connectionId, Guid killedPlayerConnectionId) {
+    private void OnDeadPlayer(Guid connectionId, Guid killerPlayerConnectionId, Death_Cause deathCause) {
+        // キルログに追加
+        gameUIManager.AddKillLog(connectionId, killerPlayerConnectionId, deathCause);
+
         // キャラクターを削除
         Destroy(CharacterList[connectionId].playerObject);
 
         // スコアを増やす
-        AddScore(killedPlayerConnectionId,1);
+        AddScore(killerPlayerConnectionId,1);
         // スコアを減らす
         SubScore(connectionId,1);
     }

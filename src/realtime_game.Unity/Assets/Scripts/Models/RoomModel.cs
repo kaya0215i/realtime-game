@@ -1,18 +1,15 @@
 using Cysharp.Threading.Tasks;
 using Grpc.Core;
-using Grpc.Net.Client;
 using MagicOnion;
 using MagicOnion.Client;
 using realtime_game.Shared.Interfaces.StreamingHubs;
 using realtime_game.Shared.Models.Entities;
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
-using UnityEditor.MemoryProfiler;
 using UnityEngine;
-using UnityEngine.SceneManagement;
+using static CharacterData;
+using static GameManager;
 using static NetworkObject;
-using static PlayerManager;
 
 public class RoomModel : BaseModel, IRoomHubReceiver {
     // シングルトンにする
@@ -107,7 +104,7 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     public Action<Guid> OnReSpownedPlayer { get; set; }
 
     // プレイヤーの死亡通知
-    public Action<Guid, Guid> OnDeadPlayer { get; set; }
+    public Action<Guid, Guid, Death_Cause> OnDeadPlayer { get; set; }
 
     // プレイヤーのヒットパーセント通知
     public Action<Guid, float> OnHitedPercentUser { get; set; }
@@ -600,9 +597,9 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     /// <summary>
     /// プレイヤー死亡
     /// </summary>
-    public async UniTask DeathPlayerAsync(Guid killedPlayerConnectionId) {
+    public async UniTask DeathPlayerAsync(Guid killerPlayerConnectionId, Death_Cause deathCause) {
         if (roomHub != null) {
-            await roomHub.DeathPlayerAsync(killedPlayerConnectionId);
+            await roomHub.DeathPlayerAsync(killerPlayerConnectionId, (int)deathCause);
         }
     }
 
@@ -610,9 +607,9 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     /// [サーバー通知]
     /// プレイヤー死亡通知
     /// </summary>
-    public void OnDeathPlayer(Guid connectionId, Guid killedPlayerConnectionId) {
+    public void OnDeathPlayer(Guid connectionId, Guid killerPlayerConnectionId, int deathCauseNum) {
         if (OnDeadPlayer != null) {
-            OnDeadPlayer(connectionId, killedPlayerConnectionId);
+            OnDeadPlayer(connectionId, killerPlayerConnectionId, (Death_Cause)Enum.ToObject(typeof(Death_Cause), deathCauseNum));
         }
     }
 
