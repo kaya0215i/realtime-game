@@ -3122,6 +3122,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5ed60a87a79a33741ae62925395927cf, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  Hat: {fileID: 2533621869107869769}
+  Accessories: {fileID: 6881309748027650490}
+  Pants: {fileID: 8189251665973485538}
+  Hairstyle: {fileID: 9070957226663843323}
+  Outerwear: {fileID: 2138293883023760189}
+  Shoes: {fileID: 3271352496129234911}
   characterType: 1
 --- !u!114 &8783477379100363153
 MonoBehaviour:
@@ -3137,10 +3143,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _head: {fileID: 6551762077848392561}
   _body: {fileID: 2331169120015142827}
-  moveSpeed: 20
+  moveSpeed: 5
   jumpValue: 5
-  _sensX: 20
-  _sensY: 20
   cinemachineCamera: {fileID: 5326832495407342168}
   resultCinemachineCamera: {fileID: 2647394427062501333}
   playerCameraMode: 1

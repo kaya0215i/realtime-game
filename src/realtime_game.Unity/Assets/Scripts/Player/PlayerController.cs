@@ -6,7 +6,7 @@ using System.Threading;
 using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using static CharacterData;
+using static CharacterSettings;
 
 public class PlayerController : MonoBehaviour {
     private GameManager gameManager;
@@ -30,8 +30,6 @@ public class PlayerController : MonoBehaviour {
     [SerializeField] private float moveSpeed;
     //ジャンプ量
     [SerializeField] private float jumpValue;
-    // カメラ感度
-    [SerializeField] private float _sensX = 5f, _sensY = 5f;
 
     // プレイヤーのシネマシンカメラ
     [SerializeField] public CinemachineCamera cinemachineCamera;
@@ -82,6 +80,9 @@ public class PlayerController : MonoBehaviour {
     private CancellationTokenSource reloadCTS = new CancellationTokenSource();
     // リロードしているか
     private bool isReloading = false;
+
+    // タッチ操作用
+    private bool touchLookActive = true;
 
     private void Start() {
         gameManager = GameObject.Find("GameManager").GetComponent<GameManager>();
@@ -195,28 +196,27 @@ public class PlayerController : MonoBehaviour {
     /// 移動量取得
     /// </summary>
     private void InputMoveValue() {
-        horizontal = playerInputActions.Player.Move.ReadValue<Vector2>().x * moveSpeed * Time.deltaTime;
-        vertical = playerInputActions.Player.Move.ReadValue<Vector2>().y * moveSpeed * Time.deltaTime;
+        horizontal = playerInputActions.Player.Move.ReadValue<Vector2>().x * moveSpeed;
+        vertical = playerInputActions.Player.Move.ReadValue<Vector2>().y * moveSpeed;
     }
 
     /// <summary>
     /// 移動処理
     /// </summary>
     private void Movement() {
-        this.transform.Translate(horizontal, 0, vertical);
+        this.transform.Translate(horizontal * Time.deltaTime, 0, vertical * Time.deltaTime);
     }
 
     /// <summary>
     /// 視点処理
     /// </summary>
     private void Look() {
-        bool touchLookActive = true;
-        if (playerInputActions.Player.TouchStart.IsPressed()) {
+        // タッチ操作だったら
+        if (playerInputActions.Player.TouchStart.triggered) {
             // primaryTouch の現在位置を取得
             var ts = Touchscreen.current;
             if (ts != null && ts.primaryTouch != null) {
                 Vector2 startPos = ts.primaryTouch.position.ReadValue();
-                Debug.Log(startPos);
                 // タッチを始めた場所が右半分だったら
                 touchLookActive = (startPos.x >= Screen.width * 0.5f);
             }
@@ -224,13 +224,17 @@ public class PlayerController : MonoBehaviour {
                 touchLookActive = false;
             }
         }
+        // マウス操作だったら
+        else if (playerInputActions.Player.MouseStart.triggered) {
+            touchLookActive = true;
+        }
 
         if (!touchLookActive) {
             return;
         }
 
-        Vector2 mouseInput = new Vector2(playerInputActions.Player.Look.ReadValue<Vector2>().x * _sensX * Time.deltaTime,
-            playerInputActions.Player.Look.ReadValue<Vector2>().y * _sensY * Time.deltaTime);
+        Vector2 mouseInput = new Vector2(playerInputActions.Player.Look.ReadValue<Vector2>().x * CharacterSettings.Instance.SensX * Time.deltaTime,
+            playerInputActions.Player.Look.ReadValue<Vector2>().y * CharacterSettings.Instance.SensY * Time.deltaTime);
 
         _xRotation -= mouseInput.y;
         _yRotation += mouseInput.x;
@@ -372,14 +376,30 @@ public class PlayerController : MonoBehaviour {
                 case PLAYER_CHARACTER_TYPE.AssaultRifle:
                 case PLAYER_CHARACTER_TYPE.SniperRifle:
                     // リロード中
-                    await ReloadingBullet().SuppressCancellationThrow();
+                    try {
+                        await ReloadingBullet();
+                    }
+                    // リロードがキャンセルされたら
+                    catch {
+                        isReloading = false;
+                        reloadCTS = new CancellationTokenSource();
+                        return;
+                    }
 
                     break;
 
                 case PLAYER_CHARACTER_TYPE.ShotGun:
                     while (bulletAmount < maxBulletAmount) {
                         // リロード中
-                        await ReloadingBullet().SuppressCancellationThrow();
+                        try {
+                            await ReloadingBullet();
+                        }
+                        // リロードがキャンセルされたら
+                        catch {
+                            isReloading = false;
+                            reloadCTS = new CancellationTokenSource();
+                            return;
+                        }
                     }
 
                     break;
@@ -400,12 +420,6 @@ public class PlayerController : MonoBehaviour {
 
         // リロード時間分待つ
         await UniTask.Delay(TimeSpan.FromSeconds(reloadTime), cancellationToken: reloadCTS.Token);
-        // リロードがキャンセルされたら
-        if (reloadCTS.Token.IsCancellationRequested) {
-            isReloading = false;
-            reloadCTS = new CancellationTokenSource();
-            return;
-        }
 
         // キャラクターのタイプごとにリロード方法を変更
         switch (playerManager.characterType) {

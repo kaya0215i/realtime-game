@@ -93,6 +93,24 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
             ""id"": ""1d3f1d6b-e699-455e-91d1-0b12cc4f0dc6"",
             ""actions"": [
                 {
+                    ""name"": ""TouchStart"",
+                    ""type"": ""Button"",
+                    ""id"": ""8928b227-75f2-4a05-87b4-3f2432e38953"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""MouseStart"",
+                    ""type"": ""Value"",
+                    ""id"": ""f3b2b0b0-322d-4017-8fa4-f76f586c744f"",
+                    ""expectedControlType"": ""Vector2"",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": true
+                },
+                {
                     ""name"": ""Move"",
                     ""type"": ""Value"",
                     ""id"": ""aac8b2ce-32da-4817-919e-df9ccb28cb05"",
@@ -109,15 +127,6 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": true
-                },
-                {
-                    ""name"": ""TouchStart"",
-                    ""type"": ""Button"",
-                    ""id"": ""8928b227-75f2-4a05-87b4-3f2432e38953"",
-                    ""expectedControlType"": """",
-                    ""processors"": """",
-                    ""interactions"": """",
-                    ""initialStateCheck"": false
                 },
                 {
                     ""name"": ""Shot"",
@@ -376,6 +385,17 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""groups"": "";Touch"",
                     ""action"": ""TouchStart"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""f3d08cb2-0761-4278-934b-f3ac7643ff2b"",
+                    ""path"": ""<Mouse>/delta"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": "";Keyboard&Mouse"",
+                    ""action"": ""MouseStart"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
                 }
@@ -963,9 +983,10 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
 }");
         // Player
         m_Player = asset.FindActionMap("Player", throwIfNotFound: true);
+        m_Player_TouchStart = m_Player.FindAction("TouchStart", throwIfNotFound: true);
+        m_Player_MouseStart = m_Player.FindAction("MouseStart", throwIfNotFound: true);
         m_Player_Move = m_Player.FindAction("Move", throwIfNotFound: true);
         m_Player_Look = m_Player.FindAction("Look", throwIfNotFound: true);
-        m_Player_TouchStart = m_Player.FindAction("TouchStart", throwIfNotFound: true);
         m_Player_Shot = m_Player.FindAction("Shot", throwIfNotFound: true);
         m_Player_Jump = m_Player.FindAction("Jump", throwIfNotFound: true);
         m_Player_Reload = m_Player.FindAction("Reload", throwIfNotFound: true);
@@ -1062,9 +1083,10 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
     // Player
     private readonly InputActionMap m_Player;
     private List<IPlayerActions> m_PlayerActionsCallbackInterfaces = new List<IPlayerActions>();
+    private readonly InputAction m_Player_TouchStart;
+    private readonly InputAction m_Player_MouseStart;
     private readonly InputAction m_Player_Move;
     private readonly InputAction m_Player_Look;
-    private readonly InputAction m_Player_TouchStart;
     private readonly InputAction m_Player_Shot;
     private readonly InputAction m_Player_Jump;
     private readonly InputAction m_Player_Reload;
@@ -1080,6 +1102,14 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
         /// </summary>
         public PlayerActions(@PlayerInputActions wrapper) { m_Wrapper = wrapper; }
         /// <summary>
+        /// Provides access to the underlying input action "Player/TouchStart".
+        /// </summary>
+        public InputAction @TouchStart => m_Wrapper.m_Player_TouchStart;
+        /// <summary>
+        /// Provides access to the underlying input action "Player/MouseStart".
+        /// </summary>
+        public InputAction @MouseStart => m_Wrapper.m_Player_MouseStart;
+        /// <summary>
         /// Provides access to the underlying input action "Player/Move".
         /// </summary>
         public InputAction @Move => m_Wrapper.m_Player_Move;
@@ -1087,10 +1117,6 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
         /// Provides access to the underlying input action "Player/Look".
         /// </summary>
         public InputAction @Look => m_Wrapper.m_Player_Look;
-        /// <summary>
-        /// Provides access to the underlying input action "Player/TouchStart".
-        /// </summary>
-        public InputAction @TouchStart => m_Wrapper.m_Player_TouchStart;
         /// <summary>
         /// Provides access to the underlying input action "Player/Shot".
         /// </summary>
@@ -1129,15 +1155,18 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
         {
             if (instance == null || m_Wrapper.m_PlayerActionsCallbackInterfaces.Contains(instance)) return;
             m_Wrapper.m_PlayerActionsCallbackInterfaces.Add(instance);
+            @TouchStart.started += instance.OnTouchStart;
+            @TouchStart.performed += instance.OnTouchStart;
+            @TouchStart.canceled += instance.OnTouchStart;
+            @MouseStart.started += instance.OnMouseStart;
+            @MouseStart.performed += instance.OnMouseStart;
+            @MouseStart.canceled += instance.OnMouseStart;
             @Move.started += instance.OnMove;
             @Move.performed += instance.OnMove;
             @Move.canceled += instance.OnMove;
             @Look.started += instance.OnLook;
             @Look.performed += instance.OnLook;
             @Look.canceled += instance.OnLook;
-            @TouchStart.started += instance.OnTouchStart;
-            @TouchStart.performed += instance.OnTouchStart;
-            @TouchStart.canceled += instance.OnTouchStart;
             @Shot.started += instance.OnShot;
             @Shot.performed += instance.OnShot;
             @Shot.canceled += instance.OnShot;
@@ -1158,15 +1187,18 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
         /// <seealso cref="PlayerActions" />
         private void UnregisterCallbacks(IPlayerActions instance)
         {
+            @TouchStart.started -= instance.OnTouchStart;
+            @TouchStart.performed -= instance.OnTouchStart;
+            @TouchStart.canceled -= instance.OnTouchStart;
+            @MouseStart.started -= instance.OnMouseStart;
+            @MouseStart.performed -= instance.OnMouseStart;
+            @MouseStart.canceled -= instance.OnMouseStart;
             @Move.started -= instance.OnMove;
             @Move.performed -= instance.OnMove;
             @Move.canceled -= instance.OnMove;
             @Look.started -= instance.OnLook;
             @Look.performed -= instance.OnLook;
             @Look.canceled -= instance.OnLook;
-            @TouchStart.started -= instance.OnTouchStart;
-            @TouchStart.performed -= instance.OnTouchStart;
-            @TouchStart.canceled -= instance.OnTouchStart;
             @Shot.started -= instance.OnShot;
             @Shot.performed -= instance.OnShot;
             @Shot.canceled -= instance.OnShot;
@@ -1477,6 +1509,20 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
     public interface IPlayerActions
     {
         /// <summary>
+        /// Method invoked when associated input action "TouchStart" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnTouchStart(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "MouseStart" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnMouseStart(InputAction.CallbackContext context);
+        /// <summary>
         /// Method invoked when associated input action "Move" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
         /// </summary>
         /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
@@ -1490,13 +1536,6 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnLook(InputAction.CallbackContext context);
-        /// <summary>
-        /// Method invoked when associated input action "TouchStart" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
-        /// </summary>
-        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
-        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
-        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
-        void OnTouchStart(InputAction.CallbackContext context);
         /// <summary>
         /// Method invoked when associated input action "Shot" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
         /// </summary>

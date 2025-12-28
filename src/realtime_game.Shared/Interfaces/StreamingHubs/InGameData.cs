@@ -7,14 +7,14 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
     [MessagePackObject]
     public class InGameData {
         [Key(0)]
-        public bool isGameStart { get; set; } = false;
+        public bool IsGameStart { get; set; } = false;
 
         [Key(1)]
-        public bool isGameSet { get; set; } = false;
+        public bool IsGameSet { get; set; } = false;
 
         [Key(2)]
-        public float gameTime { get; set; } = 0;
+        public float GameTime { get; set; } = 0;
         [Key(3)]
-        public float gameTimer { get; set; } = 0;
+        public float GameTimer { get; set; } = 0;
     }
 }

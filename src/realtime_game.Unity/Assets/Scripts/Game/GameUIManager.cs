@@ -66,6 +66,9 @@ public class GameUIManager : MonoBehaviour {
 
     [SerializeField] private GameObject gameSetText;
 
+    // スマホ用スクリーンパッド
+    [SerializeField] private GameObject screenPadUI;
+
     private void Update() {
         // ゲームスタート中
         if (gameManager.IsGameStartShared) {
@@ -222,6 +225,7 @@ public class GameUIManager : MonoBehaviour {
         // 自分を殺したプレイヤー名設定
         killerNameText.text = killerName;
 
+        screenPadUI.SetActive(false);
         gameTimerText.gameObject.SetActive(false);
         bulletAmountText.gameObject.SetActive(false);
         shotCoolTimeImage.gameObject.SetActive(false);
@@ -237,6 +241,7 @@ public class GameUIManager : MonoBehaviour {
         // スコアボード表示
         scoreBoadHeader.SetActive(true);
 
+        screenPadUI.SetActive(true);
         gameTimerText.gameObject.SetActive(true);
         bulletAmountText.gameObject.SetActive(true);
         shotCoolTimeImage.gameObject.SetActive(true);
@@ -346,6 +351,7 @@ public class GameUIManager : MonoBehaviour {
         playerUI.SetActive(false);
         scoreBoadPanel.SetActive(false);
         gameTimerText.gameObject.SetActive(false);
+        screenPadUI.SetActive(false);
 
         gameSetText.SetActive(true);
     }

@@ -7,9 +7,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using Unity.Cinemachine;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using static CharacterData;
+using static CharacterSettings;
 using static NetworkObject;
 
 public class GameManager : MonoBehaviour {
@@ -85,6 +86,7 @@ public class GameManager : MonoBehaviour {
     private async void Start() {
         // ユーザーが入退室したときにメソッドを実行するよう、モデルに登録しておく
         RoomModel.Instance.OnJoinedRoomUser += this.OnJoinedRoomUser;
+        RoomModel.Instance.CompleteJoinRoom += this.CompleteJoinRoom;
         RoomModel.Instance.OnLeavedRoomUser += this.OnLeavedRoomUser;
 
         // ゲームの開始/終了通知
@@ -126,6 +128,14 @@ public class GameManager : MonoBehaviour {
         playerController = myCharacter.GetComponent<PlayerController>();
         playerController.cinemachineCamera.Priority = 10;
 
+        // メッシュ適応
+        playerManager.Hat.sharedMesh = CharacterSettings.Instance.Hat;
+        playerManager.Accessories.sharedMesh = CharacterSettings.Instance.Accessories;
+        playerManager.Pants.sharedMesh = CharacterSettings.Instance.Pants;
+        playerManager.Hairstyle.sharedMesh = CharacterSettings.Instance.Hairstyle;
+        playerManager.Outerwear.sharedMesh = CharacterSettings.Instance.Outerwear;
+        playerManager.Shoes.sharedMesh = CharacterSettings.Instance.Shoes;
+
         // ルームに参加
         JoinRoom();
     }
@@ -134,6 +144,7 @@ public class GameManager : MonoBehaviour {
         if (RoomModel.Instance != null) {
             // 通知関連の登録解除
             RoomModel.Instance.OnJoinedRoomUser -= this.OnJoinedRoomUser;
+            RoomModel.Instance.CompleteJoinRoom -= this.CompleteJoinRoom;
             RoomModel.Instance.OnLeavedRoomUser -= this.OnLeavedRoomUser;
             RoomModel.Instance.OnGameStarted -= this.OnGameStarted;
             RoomModel.Instance.OnGameEnded -= this.OnGameEnded;
@@ -252,7 +263,13 @@ public class GameManager : MonoBehaviour {
         }
 
         // サーバーに一定間隔で送り続ける処理
-        await SendServerAsync();
+        try {
+            await SendServerAsync();
+        }
+        // キャンセルされたら
+        catch {
+
+        }
 
         // タイマーが0になったらゲーム終了
         if (gameTimerShared <= 0 &&
@@ -271,10 +288,7 @@ public class GameManager : MonoBehaviour {
         await RoomModel.Instance.UpdateGameTimerAsync(Time.deltaTime);
 
         // 0.2秒待つ
-        await UniTask.Delay(TimeSpan.FromSeconds(0.2f), cancellationToken: serverAsyncCTS.Token).SuppressCancellationThrow();
-        if (serverAsyncCTS.Token.IsCancellationRequested) {
-
-        }
+        await UniTask.Delay(TimeSpan.FromSeconds(0.2f), cancellationToken: serverAsyncCTS.Token);
     }
 
     /// <summary>
@@ -309,21 +323,26 @@ public class GameManager : MonoBehaviour {
         InGameData inGameData = await RoomModel.Instance.GetInGameDataAsync();
         if (inGameData != null) {
             // 始まってたら
-            if (inGameData.isGameStart) {
+            if (inGameData.IsGameStart) {
                 IsGameStartShared = true;
                 gameUIManager.HideWaitPlayerUI();
 
-                gameTimerShared = inGameData.gameTimer;
+                gameTimerShared = inGameData.GameTimer;
                 // ゲームタイマー更新
                 gameUIManager.UpdateGameTimer(gameTimerShared);
             }
         }
+    }
 
+    /// <summary>
+    /// 入力完了
+    /// </summary>
+    private async void CompleteJoinRoom() {
         // 現在のプレイヤーのステータスを取得して反映
         var userBattleDatas = await RoomModel.Instance.GetUserBattleDataAsync();
         foreach (var item in userBattleDatas) {
             CharacterList[item.Key].playerObject.GetComponent<PlayerManager>().HitPercent = item.Value.HitPercent;
-            ScoreList.Find(_=> _.ConnectionId == item.Key).Score = item.Value.Score;
+            ScoreList.Find(_ => _.ConnectionId == item.Key).Score = item.Value.Score;
         }
         ScoreList = ScoreList.OrderBy(ps => -ps.Score).ToList();
     }
@@ -391,8 +410,25 @@ public class GameManager : MonoBehaviour {
 
         GameObject characterObject = Instantiate(characterPrefab, parent: playerObjectParent); // インスタンス生成
         characterObject.transform.position = firstSpownPoint;
-        characterObject.GetComponent<PlayerManager>().thisCharacterConnectionId = user.ConnectionId;
         characterObject.name = "Player_" + user.JoinOrder;
+
+        PlayerManager createdPlayerManager = characterObject.GetComponent<PlayerManager>();
+        // コネクションID適応
+        createdPlayerManager.thisCharacterConnectionId = user.ConnectionId;
+
+        // キャラクター装備メッシュ
+        CharacterEquipmentSO CESO = CharacterSettings.Instance.CESO;
+
+        // メッシュ適応
+        createdPlayerManager.Hat.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Hat").equipment.Find(_ => _.name == user.LoadoutData.HatName).mesh;
+        createdPlayerManager.Accessories.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Accessories").equipment.Find(_ => _.name == user.LoadoutData.AccessoriesName).mesh;
+        createdPlayerManager.Pants.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Pants").equipment.Find(_ => _.name == user.LoadoutData.PantsName).mesh;
+        createdPlayerManager.Hairstyle.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Hairstyle").equipment.Find(_ => _.name == user.LoadoutData.HairstyleName).mesh;
+        createdPlayerManager.Outerwear.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Outerwear").equipment.Find(_ => _.name == user.LoadoutData.OuterwearName).mesh;
+        createdPlayerManager.Shoes.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Shoes").equipment.Find(_ => _.name == user.LoadoutData.ShoesName).mesh;
+
+        // キャラクタータイプ適応
+        createdPlayerManager.characterType = (PLAYER_CHARACTER_TYPE)Enum.ToObject(typeof(PLAYER_CHARACTER_TYPE), user.LoadoutData.CharacterTypeNum);
 
         // フィールドで保持
         UserDataAndObject userDataAndObject = new UserDataAndObject() { joinedData = user, playerObject = characterObject };

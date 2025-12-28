@@ -1,5 +1,5 @@
 using UnityEngine;
-using static CharacterData;
+using static CharacterSettings;
 
 public class BulletController : MonoBehaviour {
     private NetworkObject networkObject;
@@ -45,7 +45,7 @@ public class BulletController : MonoBehaviour {
             case PLAYER_CHARACTER_TYPE.SniperRifle:
                 Life = 7f;
                 AttackPower = 35f;
-                SmashPower = 8.5f;
+                SmashPower = 7.5f;
                 ShotPower = 50f;
                 break;
         }

@@ -1,27 +1,34 @@
 using Cysharp.Threading.Tasks;
+using DG.Tweening;
+using realtime_game.Shared.Interfaces.StreamingHubs;
 using realtime_game.Shared.Models.Entities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
-using Unity.VisualScripting;
-using UnityEditor.MemoryProfiler;
+using TMPro;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using static CharacterSettings;
+using static GameManager;
 
 public class LobyUIManager : MonoBehaviour {
     [SerializeField] private LobyManager lobyManager;
-
+    // 退出ボタンの
     [SerializeField] private GameObject leaveTeamBtn;
 
-    [SerializeField] private GameObject friendListScrollView;
+    // ヘッダーメニュー用
+
+    // フレンドUI用
+    [SerializeField] private GameObject friendUI;
+    [SerializeField] private Text friendUIHeaderText;
+
     // フレンドリスト用
+    [SerializeField] private GameObject friendListPanel;
     [SerializeField] private GameObject friendPrefab;
     [SerializeField] private Transform friendListScrollViewContent;
 
-    [SerializeField] private GameObject findUserPanel;
     // ユーザー検索用
+    [SerializeField] private GameObject findUserPanel;
     [SerializeField] private Text findUserInputField;
     [SerializeField] private GameObject findUserPrefab;
     [SerializeField] private Transform findUserListScrollViewContent;
@@ -31,18 +38,25 @@ public class LobyUIManager : MonoBehaviour {
     [SerializeField] private Transform friendRequestListScrollViewContent;
     private Dictionary<int, FriendList> friendList = new Dictionary<int, FriendList>();
 
+    // ロードアウト用
+    [SerializeField] private GameObject loadoutUI;
+    [SerializeField] private GameObject itemSelects;
+    [SerializeField] private GameObject selecter;
+    [SerializeField] private Image itemSelectImage;
+    [SerializeField] private GameObject itemSelectPrefab;
+    [SerializeField] private Transform itemSelectParent;
+
     // チーム招待用
     [SerializeField] private GameObject inviteNotificationPrefab;
     [SerializeField] private Transform notificationParent;
 
     // マッチング、準備用
+    [SerializeField] public GameObject matchingUI;
     [SerializeField] public GameObject matchingBtn;
     [SerializeField] public GameObject readyBtn;
 
     // ユーザーステータス用
-    [SerializeField] public GameObject playerStatusTextPrefab;
-    [SerializeField] public Transform playerStatusParent;
-    [NonSerialized] public Dictionary<Guid, Text> playerStatusTextList = new Dictionary<Guid, Text>();
+    [NonSerialized] public Dictionary<Guid, TextMeshProUGUI> playerStatusTextList = new Dictionary<Guid, TextMeshProUGUI>();
 
     // マッチングできるか
     private bool isStartMatching = false;
@@ -61,6 +75,11 @@ public class LobyUIManager : MonoBehaviour {
     }
 
     private async void Update() {
+        if (lobyManager == null ||
+            lobyManager.InGame) {
+            return;
+        }
+
         if(Input.GetKeyDown(KeyCode.F)) {
             string textListLog = "{\n";
             foreach (var textList in playerStatusTextList) {
@@ -95,12 +114,38 @@ public class LobyUIManager : MonoBehaviour {
     }
 
     /// <summary>
+    /// プレイボタン
+    /// </summary>
+    public async void OnClickPlayBtn() {
+        Camera.main.transform.DOKill();
+
+        loadoutUI.SetActive(false);
+
+        await Camera.main.transform.DOMoveX(0, Camera.main.transform.position.x / 25f * 1f).SetEase(Ease.InOutQuad).AsyncWaitForCompletion();
+
+        matchingUI.SetActive(true);
+    }
+
+    /// <summary>
+    /// ロードアウトボタン
+    /// </summary>
+    public async void OnClickLoadoutBtn() {
+        Camera.main.transform.DOKill();
+
+        matchingUI.SetActive(false);
+
+        await Camera.main.transform.DOMoveX(25, (25f - Camera.main.transform.position.x) / 25f * 1f).SetEase(Ease.InOutQuad).AsyncWaitForCompletion();
+
+        loadoutUI.SetActive(true);
+    }
+
+    /// <summary>
     /// マッチングボタンを押したら
     /// </summary>
     public async void OnClickMatchingBtn() {
         if (isStartMatching) {
             // ステータステキスト変数
-            playerStatusTextList[lobyManager.mySelf.ConnectionId].text = $"<b>{lobyManager.mySelf.UserData.Display_Name}</b>\n<color=lime>準備完了</color>";
+            playerStatusTextList[lobyManager.mySelf.ConnectionId].text = $"<b>{lobyManager.mySelf.UserData.Display_Name}</b>\n<color=green>準備完了</color>";
             await RoomModel.Instance.SendIsReadyStatusAsync(true);
             // マッチングスタート
             await RoomModel.Instance.StartMatchingAsync();
@@ -122,7 +167,7 @@ public class LobyUIManager : MonoBehaviour {
         if (isReady) {
             btnImg.color = new Color(0.7f, 0.6f, 0.3f);
             btnText.text = "準備完了";
-            playerStatusTextList[lobyManager.mySelf.ConnectionId].text = $"<b>{lobyManager.mySelf.UserData.Display_Name}</b>\n<color=lime>準備完了</color>";
+            playerStatusTextList[lobyManager.mySelf.ConnectionId].text = $"<b>{lobyManager.mySelf.UserData.Display_Name}</b>\n<color=green>準備完了</color>";
         }
         // 準備BAD
         else {
@@ -183,28 +228,22 @@ public class LobyUIManager : MonoBehaviour {
     /// フレンドリストを表示非表示
     /// </summary>
     public void OnClickFriendListScrollView() {
-        if (friendListScrollView.activeSelf) {
-            friendListScrollView.SetActive(false);
-        }
-        else {
-            friendListScrollView.SetActive(true);
-            findUserPanel.SetActive(false);
-        }
+        friendUIHeaderText.text = "フレンドリスト";
+
+        friendListPanel.SetActive(true);
+        findUserPanel.SetActive(false);
     }
 
     /// <summary>
     /// フレンド検索表示非表示
     /// </summary>
     public void OnClickFindUserPanel() {
-        if(findUserPanel.activeSelf) {
-            findUserPanel.SetActive(false);
-        }
-        else {
-            findUserPanel.SetActive(true);
-            friendListScrollView.SetActive(false);
-            // フレンドリクエストリストを表示
-            GetFriendRequestToList();
-        }
+        friendUIHeaderText.text = "検索";
+
+        findUserPanel.SetActive(true);
+        friendListPanel.SetActive(false);
+        // フレンドリクエストリストを表示
+        GetFriendRequestToList();
     }
 
     /// <summary>
@@ -212,6 +251,24 @@ public class LobyUIManager : MonoBehaviour {
     /// </summary>
     public void SwitchActiveLeaveBtn(bool value) {
         leaveTeamBtn.SetActive(value);
+    }
+
+    /// <summary>
+    /// ハンバーガーメニューボタン
+    /// </summary>
+    public void OnClickHamBergerMenuBtn() {
+        if (friendUI.activeSelf) {
+            friendUI.SetActive(false);
+
+            friendListPanel.SetActive(false);
+            findUserPanel.SetActive(false);
+        }
+        else {
+            friendUI.SetActive(true);
+
+            friendListPanel.SetActive(true);
+            findUserPanel.SetActive(false);
+        }
     }
 
     /// <summary>
@@ -435,6 +492,77 @@ public class LobyUIManager : MonoBehaviour {
     }
 
     /// <summary>
+    /// ロードアウトアイテムセレクトボタン共有
+    /// </summary>
+    public void OnClickItemSelectBtn(string select) {
+        // 子オブジェクトを削除
+        foreach (Transform child in itemSelectParent) {
+            Destroy(child.gameObject);
+        }
+
+        itemSelects.SetActive(false);
+        selecter.SetActive(true);
+
+        // キャラクター装備メッシュ
+        CharacterEquipmentSO CESO = CharacterSettings.Instance.CESO;
+
+        switch (select) {
+            case "MainWeapon":
+                for (int i = 0; i < 3; i++) {
+                    GameObject createdUI = Instantiate(itemSelectPrefab, parent: itemSelectParent);
+                    // イメージ画像を設定
+                    createdUI.GetComponentInChildren<Image>();
+                    createdUI.GetComponentInChildren<Text>().text = i.ToString();
+                    // ボタンイベントを設定
+                    int num = i;
+                    createdUI.GetComponent<Button>().onClick.AddListener(() => {
+                        CharacterSettings.Instance.CharacterType = (PLAYER_CHARACTER_TYPE)Enum.ToObject(typeof(PLAYER_CHARACTER_TYPE), num);
+                    });
+                }
+
+                break;
+
+            case "SubWeapon":
+
+                break;
+
+            case "Ultimate":
+
+                break;
+
+            case "Hat":
+            case "Accessories":
+            case "Pants":
+            case "Hairstyle":
+            case "Outerwear":
+            case "Shoes":
+                foreach (var item in CESO.characterEquipment.First(_=> _.name == select).equipment.ToList()) {
+                    GameObject createdUI = Instantiate(itemSelectPrefab, parent: itemSelectParent);
+                    // イメージ画像を設定
+                    createdUI.GetComponentInChildren<Image>();
+                    createdUI.GetComponentInChildren<Text>().text = item.name;
+                    // ボタンイベントを設定
+                    Character_Skin_Part part = (Character_Skin_Part)Enum.Parse(typeof(Character_Skin_Part), select);
+                    createdUI.GetComponent<Button>().onClick.AddListener(async () => {
+                        CharacterSettings.Instance.ChangeCharacterEquipment(part, item.name);
+                        
+                        await RoomModel.Instance.ChangeLoadoutAsync(CharacterSettings.Instance.GetLoadoutData());
+                    });
+                }
+
+                break;
+        }
+    }
+
+    /// <summary>
+    /// ロードアウトアイテムセレクトから戻る
+    /// </summary>
+    public void OnClickBackItemSelectBtn() {
+        itemSelects.SetActive(true);
+        selecter.SetActive(false);
+    }
+
+    /// <summary>
     /// [サーバー通知]
     /// チームに招待通知
     /// </summary>
@@ -482,7 +610,7 @@ public class LobyUIManager : MonoBehaviour {
         // ステータステキストを設定
         string statusText;
         if (IsReady) {
-            statusText = $"<b>{lobyManager.TeamPlayerList[connectionId].joinedData.UserData.Display_Name}</b>\n<color=lime>準備完了</color>";
+            statusText = $"<b>{lobyManager.TeamPlayerList[connectionId].joinedData.UserData.Display_Name}</b>\n<color=green>準備完了</color>";
         }
         else {
             statusText = $"<b>{lobyManager.TeamPlayerList[connectionId].joinedData.UserData.Display_Name}</b>\n<color=red>準備中</color>";

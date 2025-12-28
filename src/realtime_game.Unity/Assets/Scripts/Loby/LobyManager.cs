@@ -5,7 +5,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using TMPro;
 using Unity.VisualScripting;
+using UnityEditor.MemoryProfiler;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TextCore.Text;
@@ -14,6 +16,7 @@ using UnityEngine.UI;
 public class LobyManager : MonoBehaviour {
     [SerializeField] private LobyUIManager lobyUIManager;
 
+    private LobyPlayerManager lobyPlayerManager;
     [NonSerialized] public JoinedUser mySelf = new JoinedUser(); // 自分のユーザー情報を保存
 
     // ロビー内のユーザーのリスト
@@ -29,6 +32,9 @@ public class LobyManager : MonoBehaviour {
     // チームプレイヤーのリスト
     public Dictionary<Guid, UserDataAndObject> TeamPlayerList { get; private set; } = new Dictionary<Guid, UserDataAndObject>();
 
+    // チームに入ってるか
+    public bool InTeam { get; private set; } = false;
+
     // チームのプレイヤー最大人数
     private int teamMaxPlayerAmount = 5;
 
@@ -38,8 +44,10 @@ public class LobyManager : MonoBehaviour {
     // 自分のキャラクターオブジェクト
     private GameObject myCharacter;
     // 自分のステータステキスト
-    private Text myStatusText;
-    private Vector3 StatusTextOffset = new Vector3(0, 6f, 0);
+    private TextMeshProUGUI myStatusText;
+
+    // ゲーム中かどうか
+    [NonSerialized] public bool InGame = false;
 
     private async void Start() {
         mySelf.UserData = new User();
@@ -60,12 +68,15 @@ public class LobyManager : MonoBehaviour {
         RoomModel.Instance.OnWentGameRoomUser += OnWentGameRoomUser;
         RoomModel.Instance.OnReturnedLobyRoomUser += OnReturnedLobyRoomUser;
 
+        // ロードアウト変更通知
+        RoomModel.Instance.OnChangedLoadoutUser += OnChangedLoadoutUser;
+
         // プレイヤーを生成する
-        myCharacter = Instantiate(playerPrefab, playerStandList[0].position, playerPrefab.transform.rotation, playerObjectParent);
+        myCharacter = Instantiate(playerPrefab, playerStandList[0].position + new Vector3(0, 0.1f, 0), playerPrefab.transform.rotation, playerObjectParent);
+        lobyPlayerManager = myCharacter.GetComponent<LobyPlayerManager>();
 
         // ステータステキストを生成
-        myStatusText = Instantiate(lobyUIManager.playerStatusTextPrefab, parent: lobyUIManager.playerStatusParent).GetComponent<Text>();
-        myStatusText.rectTransform.position = RectTransformUtility.WorldToScreenPoint(Camera.main, myCharacter.transform.position + StatusTextOffset);
+        myStatusText = myCharacter.GetComponentInChildren<TextMeshProUGUI>();
 
         // 元々チームに入っていたら
         if (await RoomModel.Instance.IsAlreadyInTeamAsync()) {
@@ -121,12 +132,15 @@ public class LobyManager : MonoBehaviour {
         // 自分のユーザー情報とコネクションIDを保存
         mySelf.UserData = await UserModel.Instance.GetUserByIdAsync(UserModel.Instance.UserId);
         mySelf.ConnectionId = await RoomModel.Instance.GetConnectionIdAsync();
+        lobyPlayerManager.thisCharacterConnectionId = mySelf.ConnectionId;
 
         // ステータステキスト設定
         myStatusText.text = $"<b>{mySelf.UserData.Display_Name}</b>\n<color=red>準備中</color>";
 
         // ロビーユーザー情報を取得
         await RoomModel.Instance.GetLobyUsersAsync();
+
+        InTeam = true;
 
         // チームリストに自分を追加
         TeamPlayerList[mySelf.ConnectionId] = LobyUserList[mySelf.ConnectionId];
@@ -165,6 +179,7 @@ public class LobyManager : MonoBehaviour {
             RoomModel.Instance.OnMatchingedRoomUser -= OnMatchingedRoomUser;
             RoomModel.Instance.OnWentGameRoomUser -= OnWentGameRoomUser;
             RoomModel.Instance.OnReturnedLobyRoomUser -= OnReturnedLobyRoomUser;
+            RoomModel.Instance.OnChangedLoadoutUser -= OnChangedLoadoutUser;
         }
     }
 
@@ -199,6 +214,7 @@ public class LobyManager : MonoBehaviour {
         // 自分のユーザー情報とコネクションIDを保存
         mySelf.UserData = await UserModel.Instance.GetUserByIdAsync(UserModel.Instance.UserId);
         mySelf.ConnectionId = await RoomModel.Instance.GetConnectionIdAsync();
+        lobyPlayerManager.thisCharacterConnectionId = mySelf.ConnectionId;
 
         // ステータステキスト設定
         myStatusText.text = $"<b>{mySelf.UserData.Display_Name}</b>\n<color=red>準備中</color>";
@@ -277,6 +293,9 @@ public class LobyManager : MonoBehaviour {
     /// </summary>
     private async UniTask CreateTeamAndJoin() {
         await RoomModel.Instance.CreateTeamAndJoinAsync();
+
+        InTeam = true;
+
         // チームリストに自分を追加
         TeamPlayerList[mySelf.ConnectionId] = LobyUserList[mySelf.ConnectionId];
         TeamPlayerList[mySelf.ConnectionId].joinedData.TeamUser.IsLeader = true;
@@ -324,6 +343,8 @@ public class LobyManager : MonoBehaviour {
         // 参加
         await RoomModel.Instance.JoinTeamAsync(targetTeamId);
 
+        InTeam = true;
+
         // マッチングボタン設定
         lobyUIManager.readyBtn.SetActive(true);
     }
@@ -340,6 +361,8 @@ public class LobyManager : MonoBehaviour {
     /// </summary>
     private async UniTask LeaveTeam(bool IsNewCreateTeam) {
         await RoomModel.Instance.LeaveTeamAsync();
+
+        InTeam = false;
 
         // プレイヤーを削除
         foreach (UserDataAndObject userData in TeamPlayerList.Values) {
@@ -373,7 +396,7 @@ public class LobyManager : MonoBehaviour {
         }
 
         // ステータステキストを初期化
-        lobyUIManager.playerStatusTextList = new Dictionary<Guid, Text>();
+        lobyUIManager.playerStatusTextList = new Dictionary<Guid, TextMeshProUGUI>();
 
         // チーム作成
         if (IsNewCreateTeam) {
@@ -397,27 +420,38 @@ public class LobyManager : MonoBehaviour {
         }
 
         // フィールドで保持
-        GameObject createdPlayer = Instantiate(playerPrefab, playerStandList[teamPlayerAmount].position, playerPrefab.transform.rotation, playerObjectParent);
+        GameObject createdPlayer = Instantiate(playerPrefab, playerStandList[teamPlayerAmount].position + new Vector3(0, 0.1f, 0), playerPrefab.transform.rotation, playerObjectParent);
+
+        LobyPlayerManager createdLobyPlayerManager = createdPlayer.GetComponent<LobyPlayerManager>();
+        // コネクションID適応
+        createdLobyPlayerManager.thisCharacterConnectionId = user.ConnectionId;
+
+        // キャラクター装備メッシュ
+        CharacterEquipmentSO CESO = CharacterSettings.Instance.CESO;
+
+        // メッシュ適応
+        createdLobyPlayerManager.Hat.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Hat").equipment.Find(_ => _.name == user.LoadoutData.HatName).mesh;
+        createdLobyPlayerManager.Accessories.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Accessories").equipment.Find(_ => _.name == user.LoadoutData.AccessoriesName).mesh;
+        createdLobyPlayerManager.Pants.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Pants").equipment.Find(_ => _.name == user.LoadoutData.PantsName).mesh;
+        createdLobyPlayerManager.Hairstyle.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Hairstyle").equipment.Find(_ => _.name == user.LoadoutData.HairstyleName).mesh;
+        createdLobyPlayerManager.Outerwear.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Outerwear").equipment.Find(_ => _.name == user.LoadoutData.OuterwearName).mesh;
+        createdLobyPlayerManager.Shoes.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Shoes").equipment.Find(_ => _.name == user.LoadoutData.ShoesName).mesh;
+
         UserDataAndObject userData = new UserDataAndObject() { joinedData = user, playerObject = createdPlayer };
         TeamPlayerList[user.ConnectionId] = userData;
         teamPlayerAmount++;
 
-        // ステータステキストを生成
-        GameObject createdStatusObj = Instantiate(lobyUIManager.playerStatusTextPrefab, parent: lobyUIManager.playerStatusParent);
-        //　テキストを設定する
-        Text statusText = createdStatusObj.GetComponent<Text>();
+        //　ステータステキストを取得しテキストを設定する
+        TextMeshProUGUI statusText = createdPlayer.GetComponentInChildren<TextMeshProUGUI>();
         if (user.TeamUser.IsPlaying) {
             statusText.text = $"<b>{user.UserData.Display_Name}</b>\n<color=blue>プレイ中</color>";
         }
         else if (user.TeamUser.IsReady) {
-            statusText.text = $"<b>{user.UserData.Display_Name}</b>\n<color=lime>準備完了</color>";
+            statusText.text = $"<b>{user.UserData.Display_Name}</b>\n<color=green>準備完了</color>";
         }
         else {
             statusText.text = $"<b>{user.UserData.Display_Name}</b>\n<color=red>準備中</color>";
         }
-
-            // 位置を設定
-            statusText.rectTransform.position = RectTransformUtility.WorldToScreenPoint(Camera.main, createdPlayer.transform.position + StatusTextOffset);
 
         // フィールドで保持
         lobyUIManager.playerStatusTextList[user.ConnectionId] = statusText;
@@ -482,6 +516,8 @@ public class LobyManager : MonoBehaviour {
             textList.Value.text = $"<b>{TeamPlayerList[textList.Key].joinedData.UserData.Display_Name}</b>\n<color=blue>プレイ中</color>";
         }
 
+        InGame = true;
+
         // ゲームシーンに移動
         SceneManager.LoadScene("GameScene");
     }
@@ -517,4 +553,26 @@ public class LobyManager : MonoBehaviour {
     public void ChangeTeamUserDataIsReady(Guid connectionId, bool isReady) {
         TeamPlayerList[connectionId].joinedData.TeamUser.IsReady = isReady;
     }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// チームメンバーにロードアウト変更通知
+    /// </summary>
+    public void OnChangedLoadoutUser(Guid connectionId, LoadoutData loadoutData) {
+        if (connectionId == mySelf.ConnectionId) {
+            return;
+        }
+        // キャラクター装備メッシュ
+        CharacterEquipmentSO CESO = CharacterSettings.Instance.CESO;
+
+        // メッシュ適応
+        LobyPlayerManager lPM = TeamPlayerList[connectionId].playerObject.GetComponent<LobyPlayerManager>();
+        lPM.Hat.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Hat").equipment.Find(_ => _.name == loadoutData.HatName).mesh;
+        lPM.Accessories.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Accessories").equipment.Find(_ => _.name == loadoutData.AccessoriesName).mesh;
+        lPM.Pants.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Pants").equipment.Find(_ => _.name == loadoutData.PantsName).mesh;
+        lPM.Hairstyle.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Hairstyle").equipment.Find(_ => _.name == loadoutData.HairstyleName).mesh;
+        lPM.Outerwear.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Outerwear").equipment.Find(_ => _.name == loadoutData.OuterwearName).mesh;
+        lPM.Shoes.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Shoes").equipment.Find(_ => _.name == loadoutData.ShoesName).mesh;
+    }
+
 }

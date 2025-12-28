@@ -73,6 +73,11 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         Task InviteTeamFriendAsync(Guid targetConnectionId, Guid teamId);
 
         /// <summary>
+        /// ロードアウトを変更
+        /// </summary>
+        Task ChangeLoadoutAsync(LoadoutData equipmentData);
+
+        /// <summary>
         /// 準備状態を通知
         /// </summary>
         Task SendIsReadyStatusAsync(bool isReady);
@@ -98,7 +103,7 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         /// <summary>
         /// ユーザー入室
         /// </summary>
-        Task<JoinedUser[]> JoinRoomAsync(string roomName, int userId);
+        Task<JoinedUser[]> JoinRoomAsync(string roomName, int userId, LoadoutData loadoutData);
 
         /// <summary>
         /// ユーザー退室

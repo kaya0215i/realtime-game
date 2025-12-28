@@ -50,6 +50,11 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         public void OnInviteTeam(Guid teamId, User senderUser);
 
         /// <summary>
+        /// チームメンバーにロードアウト変更通知
+        /// </summary>
+        public void OnChangeLoadout(Guid connectionId, LoadoutData loadoutData);
+
+        /// <summary>
         /// 準備状態通知
         /// </summary>
         public void OnIsReadyStatus(Guid connectionId, bool IsReady);

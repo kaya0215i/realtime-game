@@ -1,5 +1,6 @@
 using DG.Tweening.Core.Easing;
 using realtime_game.Shared.Models.Entities;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -7,9 +8,12 @@ public class TitleManager : MonoBehaviour {
     [SerializeField] private TitleUIManager titleUIManager;
     private SaveManager saveManager;
 
-    private void Start() {
+    private async void Start() {
         saveManager = this.GetComponent<SaveManager>();
         ConnectServer();
+
+        // メッシュデータを読み込む
+        await CharacterSettings.Instance.MeshLoadDataAsync();
     }
 
     /// <summary>

@@ -7,6 +7,24 @@
             "id": "1d3f1d6b-e699-455e-91d1-0b12cc4f0dc6",
             "actions": [
                 {
+                    "name": "TouchStart",
+                    "type": "Button",
+                    "id": "8928b227-75f2-4a05-87b4-3f2432e38953",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "MouseStart",
+                    "type": "Value",
+                    "id": "f3b2b0b0-322d-4017-8fa4-f76f586c744f",
+                    "expectedControlType": "Vector2",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": true
+                },
+                {
                     "name": "Move",
                     "type": "Value",
                     "id": "aac8b2ce-32da-4817-919e-df9ccb28cb05",
@@ -23,15 +41,6 @@
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": true
-                },
-                {
-                    "name": "TouchStart",
-                    "type": "Button",
-                    "id": "8928b227-75f2-4a05-87b4-3f2432e38953",
-                    "expectedControlType": "",
-                    "processors": "",
-                    "interactions": "",
-                    "initialStateCheck": false
                 },
                 {
                     "name": "Shot",
@@ -290,6 +299,17 @@
                     "processors": "",
                     "groups": ";Touch",
                     "action": "TouchStart",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "f3d08cb2-0761-4278-934b-f3ac7643ff2b",
+                    "path": "<Mouse>/delta",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": ";Keyboard&Mouse",
+                    "action": "MouseStart",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

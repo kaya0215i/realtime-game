@@ -382,6 +382,23 @@ namespace realtime_game.Server.StreamingHubs {
         }
 
         /// <summary>
+        /// ロードアウトを変更
+        /// </summary>
+        public async Task ChangeLoadoutAsync(LoadoutData loadoutData) {
+            // コンテキストを取得
+            GetContext("Loby");
+
+            // チームメンバー取得
+            var teamMember = this._roomContext.TeamUserDataList.FirstOrDefault(tm => tm.Value.ContainsKey(this.ConnectionId));
+
+            // フィールドで保持
+            this._roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.LoadoutData = loadoutData;
+
+            // チームメンバーに準備完了状態を通知
+            this._roomContext.Group.Only(teamMember.Value.Keys).OnChangeLoadout(this.ConnectionId, loadoutData);
+        }
+
+        /// <summary>
         /// 準備状態を通知
         /// </summary>
         public async Task SendIsReadyStatusAsync(bool isReady) {
@@ -416,7 +433,7 @@ namespace realtime_game.Server.StreamingHubs {
                     continue;
                 }
                 // ゲームが終わってたら無視
-                if (roomContext.Value.InGameData.isGameSet) {
+                if (roomContext.Value.InGameData.IsGameSet) {
                     continue;
                 }
 
@@ -464,7 +481,7 @@ namespace realtime_game.Server.StreamingHubs {
         /// <summary>
         /// ルームに接続
         /// </summary>
-        public async Task<JoinedUser[]> JoinRoomAsync(string roomName, int userId) {
+        public async Task<JoinedUser[]> JoinRoomAsync(string roomName, int userId, LoadoutData loadoutData) {
             // 同時に生成しない用に排他制御
             lock (_roomContextRepository) {
                 // 指定の名前のルームがあるかどうかを確認
@@ -502,6 +519,7 @@ namespace realtime_game.Server.StreamingHubs {
             joinedUser.ConnectionId = this.ConnectionId;
             joinedUser.UserData = user;
             joinedUser.JoinOrder = this._roomContext.RoomUserDataList.Count + 1;
+            joinedUser.LoadoutData = loadoutData;
 
             // ルームコンテキストにユーザー情報を登録
             var roomUserData = new RoomUserData() { UserBattleData = new UserBattleData(), JoinedUser = joinedUser };
@@ -595,9 +613,9 @@ namespace realtime_game.Server.StreamingHubs {
         /// ゲームスタート
         /// </summary>
         public Task GameStartAsync() {
-            this._roomContext.InGameData.isGameStart = true;
-            this._roomContext.InGameData.gameTime = 300;
-            this._roomContext.InGameData.gameTimer = this._roomContext.InGameData.gameTime;
+            this._roomContext.InGameData.IsGameStart = true;
+            this._roomContext.InGameData.GameTime = 300;
+            this._roomContext.InGameData.GameTimer = this._roomContext.InGameData.GameTime;
 
             // ゲームスタート通知
             this._roomContext.Group.All.OnGameStart();
@@ -610,8 +628,8 @@ namespace realtime_game.Server.StreamingHubs {
         /// ゲーム終了
         /// </summary>
         public Task GameEndAsync() {
-            this._roomContext.InGameData.isGameSet = true;
-            this._roomContext.InGameData.isGameStart = false;
+            this._roomContext.InGameData.IsGameSet = true;
+            this._roomContext.InGameData.IsGameStart = false;
 
             // ゲーム終了通知
             this._roomContext.Group.All.OnGameEnd();
@@ -623,10 +641,10 @@ namespace realtime_game.Server.StreamingHubs {
         /// ゲームタイマー更新
         /// </summary>
         public Task UpdateGameTimerAsync(float deltaTime) {
-            this._roomContext.InGameData.gameTimer -= deltaTime;
+            this._roomContext.InGameData.GameTimer -= deltaTime;
 
             // ゲームタイマー更新通知
-            this._roomContext.Group.All.OnUpdateGameTimer(this._roomContext.InGameData.gameTimer);
+            this._roomContext.Group.All.OnUpdateGameTimer(this._roomContext.InGameData.GameTimer);
 
             return Task.CompletedTask;
         }
@@ -635,7 +653,7 @@ namespace realtime_game.Server.StreamingHubs {
         /// キャラクタータイプ変更
         /// </summary>
         public Task ChangeCharacterTypeAsync(int typeNum) {
-            this._roomContext.RoomUserDataList[this.ConnectionId].characterTypeNum = typeNum;
+            this._roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.LoadoutData.CharacterTypeNum = typeNum;
 
             // キャラクタータイプ変更を自分以外に通知
             this._roomContext.Group.Except([this.ConnectionId]).OnChangeCharacterType(this.ConnectionId, typeNum);

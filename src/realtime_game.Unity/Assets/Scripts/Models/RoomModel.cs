@@ -6,8 +6,9 @@ using realtime_game.Shared.Interfaces.StreamingHubs;
 using realtime_game.Shared.Models.Entities;
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using UnityEngine;
-using static CharacterData;
+using static CharacterSettings;
 using static GameManager;
 using static NetworkObject;
 
@@ -49,6 +50,9 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     // ユーザー接続通知
     public Action<JoinedUser> OnJoinedRoomUser { get; set; }
 
+    // ルーム入力完了
+    public Action CompleteJoinRoom { get; set; }
+
     // ユーザー退出通知
     public Action<Guid, int> OnLeavedRoomUser { get; set; }
 
@@ -60,6 +64,9 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
 
     // チームに招待通知
     public Action<Guid, User> OnInvitedTeamUser { get; set; }
+
+    // チームにロードアウト変更通知
+    public Action<Guid, LoadoutData> OnChangedLoadoutUser { get; set; }
 
     // 準備状態通知
     public Action<Guid, bool> OnIsReadyedStatusUser { get; set; }
@@ -308,6 +315,24 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
         }
     }
 
+    /// <summary>
+    /// ロードアウトを変更
+    /// </summary>
+    public async UniTask ChangeLoadoutAsync(LoadoutData loadoutData) {
+        if (roomHub != null) {
+            await roomHub.ChangeLoadoutAsync(loadoutData);
+        }
+    }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// チームメンバーにロードアウト変更通知
+    /// </summary>
+    public void OnChangeLoadout(Guid connectionId, LoadoutData loadoutData) {
+        if (OnChangedLoadoutUser !=  null) {
+            OnChangedLoadoutUser(connectionId, loadoutData);
+        }
+    }
 
     /// <summary>
     /// チームに入っているか
@@ -427,13 +452,18 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     public async UniTask<bool> JoinRoomAsync() {
         if (roomHub != null) {
             try {
-                JoinedUser[] users = await roomHub.JoinRoomAsync(this.roomName, UserModel.Instance.UserId);
+                JoinedUser[] users = await roomHub.JoinRoomAsync(this.roomName, UserModel.Instance.UserId, CharacterSettings.Instance.GetLoadoutData());
 
                 foreach (var user in users) {
                     if (OnJoinedRoomUser != null) {
                         OnJoinedRoomUser(user);
                     }
                 }
+
+                if (CompleteJoinRoom != null) {
+                    CompleteJoinRoom();
+                }
+
                 return true;
             }
             catch (RpcException e) {

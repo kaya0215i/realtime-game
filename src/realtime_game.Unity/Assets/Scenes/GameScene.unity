@@ -3178,6 +3178,7 @@ MonoBehaviour:
   resultRankingPrefab: {fileID: 975047749089438921, guid: 35e5616fc37853e4289da6c45340a28f, type: 3}
   resultRankingParent: {fileID: 729471613}
   gameSetText: {fileID: 1686784715}
+  screenPadUI: {fileID: 60210413}
 --- !u!1 &999386219
 GameObject:
   m_ObjectHideFlags: 0

@@ -4,7 +4,7 @@ using System;
 using System.Threading;
 using TMPro;
 using UnityEngine;
-using static CharacterData;
+using static CharacterSettings;
 using static GameManager;
 
 public class PlayerManager : MonoBehaviour {
@@ -18,6 +18,19 @@ public class PlayerManager : MonoBehaviour {
     // このキャラクターのコネクションID
     [NonSerialized] public Guid thisCharacterConnectionId;
 
+    // 帽子
+    [SerializeField] public SkinnedMeshRenderer Hat;
+    // アクセサリー
+    [SerializeField] public SkinnedMeshRenderer Accessories;
+    // パンツ
+    [SerializeField] public SkinnedMeshRenderer Pants;
+    // 髪型
+    [SerializeField] public SkinnedMeshRenderer Hairstyle;
+    // アウター
+    [SerializeField] public SkinnedMeshRenderer Outerwear;
+    // 靴
+    [SerializeField] public SkinnedMeshRenderer Shoes;
+
     // Transform情報を送るタイマー
     private float updateTransformTime = 0;
     // Transform情報を送る間隔
@@ -27,10 +40,7 @@ public class PlayerManager : MonoBehaviour {
     [NonSerialized] public Quaternion cameraRotate;
 
     // キャラクターのタイプ
-    public PLAYER_CHARACTER_TYPE characterType = PLAYER_CHARACTER_TYPE.None;
-
-    // キャラクタータイプ監視用
-    private PLAYER_CHARACTER_TYPE characterTypeObserver = PLAYER_CHARACTER_TYPE.None;
+    public PLAYER_CHARACTER_TYPE characterType = PLAYER_CHARACTER_TYPE.AssaultRifle;
 
     // 最後に自分に弾を当てたプレイヤーのコネクションID
     private Guid lastHitPlayerConnectionId = Guid.Empty;
@@ -42,12 +52,13 @@ public class PlayerManager : MonoBehaviour {
     // 解除処理用CancellationTokenSource
     private CancellationTokenSource releseCTS = new CancellationTokenSource();
 
-
     // 頭上ヒットパーセントテキスト
     private TextMeshProUGUI headUpHitPercentText;
 
     // ヒットパーセント
     [NonSerialized] public float HitPercent = 0f;
+
+
 
     private void Start() {
         gameManager = GameObject.Find("GameManager").GetComponent<GameManager>();
@@ -87,12 +98,10 @@ public class PlayerManager : MonoBehaviour {
             await RoomModel.Instance.UpdateUserTransformAsync(this.transform.position, this.transform.rotation, cameraRotate);
         }
 
-        // 自分のキャラクタータイプを取得
-        characterType = CharacterData.Instance.characterType;
-
         // プレイヤーのキャラクタータイプが変わったら
-        if (characterTypeObserver != characterType) {
-            characterTypeObserver = characterType;
+        if (characterType != CharacterSettings.Instance.CharacterType) {
+            // キャラクタータイプ変更
+            characterType = CharacterSettings.Instance.CharacterType;
             Debug.Log("キャラクタータイプ変更");
 
             playerController.SetPlayerCharacterType();
@@ -102,7 +111,13 @@ public class PlayerManager : MonoBehaviour {
 
         if (lastHitPlayerConnectionId != Guid.Empty &&
             !isStartReleseTimer) {
-            await ReleseLastHitConnectionId().SuppressCancellationThrow();
+            try {
+                await ReleseLastHitConnectionId();
+            }
+            // キャンセルされたら
+            catch {
+                releseCTS = new CancellationTokenSource();
+            }
         }
     }
 
@@ -114,10 +129,6 @@ public class PlayerManager : MonoBehaviour {
 
         // 10秒待つ
         await UniTask.Delay(TimeSpan.FromSeconds(10), cancellationToken: releseCTS.Token);
-        // キャンセルされたら
-        if (releseCTS.Token.IsCancellationRequested) {
-            return;
-        }
 
         lastHitPlayerConnectionId = Guid.Empty;
         deathCause = Death_Cause.None;
@@ -157,7 +168,7 @@ public class PlayerManager : MonoBehaviour {
             float addPowerFromLife = 1 + (bulletController.Life / 100);
 
             // ヒットパーセントが高いほど吹っ飛ぶように
-            float addPowerFromHitPercent = 1 + (HitPercent / 100);
+            float addPowerFromHitPercent = 1 + (HitPercent / 50);
 
             // 吹っ飛ばし
             myRb.linearVelocity = Vector3.zero;
@@ -179,7 +190,9 @@ public class PlayerManager : MonoBehaviour {
             }
 
             // 弾を削除
-            bulletController.DestroyThisObject();
+            if (bulletController.gameObject != null) {
+                bulletController.DestroyThisObject();
+            }
         }
     }
 
