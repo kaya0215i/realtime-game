@@ -121,6 +121,10 @@ public class GameManager : MonoBehaviour {
         // プレイヤーのヒットパーセント通知
         RoomModel.Instance.OnHitedPercentUser += this.OnHitedPercentUser;
 
+        // アニメーション通知
+        RoomModel.Instance.OnAnimationTriggeredUser += this.OnAnimationTriggeredUser;
+        RoomModel.Instance.OnAnimationStateUser += this.OnAnimationStateUser;
+
         // 自分のキャラクターを作成
         myCharacter = Instantiate(characterPrefab, parent: playerObjectParent); // プレイヤーインスタンス生成
         myCharacter.transform.position = firstSpownPoint;
@@ -158,6 +162,8 @@ public class GameManager : MonoBehaviour {
             RoomModel.Instance.OnReSpownedPlayer -= this.OnReSpownedPlayer;
             RoomModel.Instance.OnDeadPlayer -= this.OnDeadPlayer;
             RoomModel.Instance.OnHitedPercentUser -= this.OnHitedPercentUser;
+            RoomModel.Instance.OnAnimationTriggeredUser -= this.OnAnimationTriggeredUser;
+            RoomModel.Instance.OnAnimationStateUser -= this.OnAnimationStateUser;
         }
     }
 
@@ -791,5 +797,29 @@ public class GameManager : MonoBehaviour {
 
         ScoreList = ScoreList.OrderBy(ps => -ps.Score).ToList();
         winnerConnectionId = ScoreList[0].ConnectionId;
+    }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// アニメーション通知(Trigger)
+    /// </summary>
+    private void OnAnimationTriggeredUser(Guid connectionId, string animName) {
+        if (!CharacterList.ContainsKey(connectionId)) {
+            return;
+        }
+
+        CharacterList[connectionId].playerObject.GetComponent<PlayerAnimation>().OnAnimationTrigger(animName);
+    }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// アニメーション通知(State)
+    /// </summary>
+    private void OnAnimationStateUser(Guid connectionId, int state) {
+        if (!CharacterList.ContainsKey(connectionId)) {
+            return;
+        }
+
+        CharacterList[connectionId].playerObject.GetComponent<PlayerAnimation>().OnAnimationState(state);
     }
 }

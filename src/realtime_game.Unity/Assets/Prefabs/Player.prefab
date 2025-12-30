@@ -3068,6 +3068,7 @@ GameObject:
   - component: {fileID: 2331169120015142827}
   - component: {fileID: 5843744336223839454}
   - component: {fileID: 8783477379100363153}
+  - component: {fileID: 245016918607115830}
   - component: {fileID: 639803890841333425}
   - component: {fileID: 6583238404645459187}
   - component: {fileID: 4726880460362677241}
@@ -3152,6 +3153,18 @@ MonoBehaviour:
   - {fileID: 6994698092722018310, guid: 34d7c4d1ba604d4459825ae70abd5d39, type: 3}
   - {fileID: 6994698092722018310, guid: 5a7fafaaf68bfc647be22e489802d2e6, type: 3}
   - {fileID: 6994698092722018310, guid: dff3b01643f3d63438cba8660f8ca4e6, type: 3}
+--- !u!114 &245016918607115830
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7088715368809973477}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 08ea4cba1f76de849bce182a2e2b367d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!95 &639803890841333425
 Animator:
   serializedVersion: 7

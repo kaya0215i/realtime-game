@@ -183,5 +183,15 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         /// オブジェクトを手放す
         /// </summary>
         Task DisInteractObjectAsync(Guid objectId);
+
+        /// <summary>
+        /// アニメーション同期(Trigger)
+        /// </summary>
+        Task AnimationTriggerAsync(string animName);
+
+        /// <summary>
+        /// アニメーション同期(State)
+        /// </summary>
+        Task AnimationStateAsync(int state);
     }
 }

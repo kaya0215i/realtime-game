@@ -13,6 +13,8 @@ public class PlayerController : MonoBehaviour {
     private PlayerManager playerManager;
     private Rigidbody myRb;
 
+    private PlayerAnimation playerAnimation;
+
     // プレイヤーの入力
     private PlayerInputActions playerInputActions;
 
@@ -88,6 +90,7 @@ public class PlayerController : MonoBehaviour {
         gameManager = GameObject.Find("GameManager").GetComponent<GameManager>();
         playerManager = this.GetComponent<PlayerManager>();
         myRb = this.GetComponent<Rigidbody>();
+        playerAnimation = this.GetComponent<PlayerAnimation>();
         cinemachineFollow = cinemachineCamera.GetComponent<CinemachineFollow>();
         bulletParent = GameObject.Find("Bullets").GetComponent<Transform>();
         uiManager = GameObject.Find("UICanvas").GetComponent<GameUIManager>();
@@ -205,6 +208,7 @@ public class PlayerController : MonoBehaviour {
     /// </summary>
     private void Movement() {
         this.transform.Translate(horizontal * Time.deltaTime, 0, vertical * Time.deltaTime);
+        playerAnimation.MoveAnimation(horizontal, vertical);
     }
 
     /// <summary>
@@ -259,6 +263,7 @@ public class PlayerController : MonoBehaviour {
         if (playerInputActions.Player.Jump.triggered) {
             if (IsField()) {
                 myRb.AddForce(Vector3.up * jumpValue, ForceMode.Impulse);
+                playerAnimation.JumpAnimation();
             }
         }
     }
@@ -314,6 +319,8 @@ public class PlayerController : MonoBehaviour {
 
                     GameObject createdBullet = Instantiate(bulletList.First(_ => _.name == bulletName), Camera.main.transform.position + Camera.main.transform.forward, _head.transform.rotation, bulletParent);
                     BulletController createdBulletController = createdBullet.GetComponent<BulletController>();
+
+                    playerAnimation.ShotAnimation();
                 }
 
                 break;
@@ -333,6 +340,8 @@ public class PlayerController : MonoBehaviour {
                         GameObject createdBullet = Instantiate(bulletList.First(_ => _.name == bulletName), Camera.main.transform.position + Camera.main.transform.forward, _head.transform.rotation, bulletParent);
                         BulletController createdBulletController = createdBullet.GetComponent<BulletController>();
                     }
+
+                    playerAnimation.ShotAnimation();
                 }
 
                 break;
@@ -350,6 +359,8 @@ public class PlayerController : MonoBehaviour {
 
                     GameObject createdBullet = Instantiate(bulletList.First(_ => _.name == bulletName), Camera.main.transform.position + Camera.main.transform.forward, _head.transform.rotation, bulletParent);
                     BulletController createdBulletController = createdBullet.GetComponent<BulletController>();
+
+                    playerAnimation.ShotAnimation();
                 }
 
                 break;
@@ -371,6 +382,8 @@ public class PlayerController : MonoBehaviour {
         }
 
         if (playerInputActions.Player.Reload.triggered) {
+            playerAnimation.StartReloadAnimation();
+
             // キャラクターのタイプごとにリロード方法を変更
             switch (playerManager.characterType) {
                 case PLAYER_CHARACTER_TYPE.AssaultRifle:
@@ -383,6 +396,8 @@ public class PlayerController : MonoBehaviour {
                     catch {
                         isReloading = false;
                         reloadCTS = new CancellationTokenSource();
+
+                        playerAnimation.EndReloadAnimation();
                         return;
                     }
 
@@ -398,6 +413,8 @@ public class PlayerController : MonoBehaviour {
                         catch {
                             isReloading = false;
                             reloadCTS = new CancellationTokenSource();
+
+                            playerAnimation.EndReloadAnimation();
                             return;
                         }
                     }
@@ -407,6 +424,8 @@ public class PlayerController : MonoBehaviour {
 
             // 弾数をUIに反映
             uiManager.UpdateBulletAmountText(bulletAmount, maxBulletAmount);
+
+            playerAnimation.EndReloadAnimation();
         }
     }
 

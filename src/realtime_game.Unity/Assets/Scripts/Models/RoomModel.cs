@@ -116,6 +116,12 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     // プレイヤーのヒットパーセント通知
     public Action<Guid, float> OnHitedPercentUser { get; set; }
 
+    // プレイヤーのアニメーションTrigger通知
+    public Action<Guid, string> OnAnimationTriggeredUser { get; set; }
+
+    // プレイヤーのアニメーションState通知
+    public Action<Guid, int> OnAnimationStateUser { get; set; }
+
     /// <summary>
     /// MagicOnion接続処理
     /// </summary>
@@ -776,5 +782,43 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
         if (OnUpdatedObjectTransform != null) {
             OnUpdatedObjectTransform(objectId, pos, rotate);
         }
-    }    
+    }
+
+    /// <summary>
+    /// アニメーション同期(Trigger)
+    /// </summary>
+    public async UniTask AnimationTriggerAsync(string animName) {
+        if (roomHub != null) {
+            await roomHub.AnimationTriggerAsync(animName);
+        }
+    }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// アニメーション通知(Trigger)
+    /// </summary>
+    public void OnAnimationTrigger(Guid connectionId, string animName) {
+        if (OnAnimationTriggeredUser != null) {
+            OnAnimationTriggeredUser(connectionId, animName);
+        }
+    }
+
+    /// <summary>
+    /// アニメーション同期(State)
+    /// </summary>
+    public async UniTask AnimationStateAsync(int state) {
+        if (roomHub != null) {
+            await roomHub.AnimationStateAsync(state);
+        }
+    }
+
+    /// <summary>
+    /// [サーバー通知]
+    /// アニメーション通知(State)
+    /// </summary>
+    public void OnAnimationState(Guid connectionId, int state) {
+        if (OnAnimationStateUser != null) {
+            OnAnimationStateUser(connectionId, state);
+        }
+    }
 }

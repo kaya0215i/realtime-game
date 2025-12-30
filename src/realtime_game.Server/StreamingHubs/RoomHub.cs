@@ -826,5 +826,25 @@ namespace realtime_game.Server.StreamingHubs {
 
             return Task.CompletedTask;
         }
+
+        /// <summary>
+        /// アニメーション同期(Trigger)
+        /// </summary>
+        public Task AnimationTriggerAsync(string animName) {
+            // 自分以外のメンバーに通知
+            this._roomContext.Group.Except([this.ConnectionId]).OnAnimationTrigger(this.ConnectionId, animName);
+
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// アニメーション同期(State)
+        /// </summary>
+        public Task AnimationStateAsync(int state) {
+            // 自分以外のメンバーに通知
+            this._roomContext.Group.Except([this.ConnectionId]).OnAnimationState(this.ConnectionId, state);
+
+            return Task.CompletedTask;
+        }
     }
 }

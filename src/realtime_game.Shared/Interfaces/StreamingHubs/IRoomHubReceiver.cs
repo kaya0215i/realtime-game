@@ -154,5 +154,15 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         /// オブジェクトのTransform通知
         /// </summary>
         public void OnUpdateObjectTransform(Guid objectId, Vector3 pos, Quaternion rotate);
+
+        /// <summary>
+        /// アニメーション通知(Trigger)
+        /// </summary>
+        public void OnAnimationTrigger(Guid connectionId, string animName);
+
+        /// <summary>
+        /// アニメーション通知(State)
+        /// </summary>
+        public void OnAnimationState(Guid connectionId, int state);
     }
 }

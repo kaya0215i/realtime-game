@@ -5,6 +5,7 @@ using realtime_game.Shared.Models.Entities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -67,6 +68,12 @@ public class LobyUIManager : MonoBehaviour {
     // フレンドリスト更新タイマー
     private float updateFriendListTimer = 0;
 
+    private CancellationToken CT;
+
+    private void Awake() {
+        CT = this.GetCancellationTokenOnDestroy();
+    }
+
     private void Start() {
         // チームに招待通知登録
         RoomModel.Instance.OnInvitedTeamUser += OnInvitedTeamUser;
@@ -97,7 +104,10 @@ public class LobyUIManager : MonoBehaviour {
         if (updateFriendListTimer >= 0.2f) {
             updateFriendListTimer = 0;
             // UIを更新
-            await GetFriendToList();
+            try {
+                await GetFriendToList().AttachExternalCancellation(CT);
+            }
+            catch { }
         }
     }
 
@@ -116,27 +126,27 @@ public class LobyUIManager : MonoBehaviour {
     /// <summary>
     /// プレイボタン
     /// </summary>
-    public async void OnClickPlayBtn() {
+    public void OnClickPlayBtn() {
         Camera.main.transform.DOKill();
 
         loadoutUI.SetActive(false);
 
-        await Camera.main.transform.DOMoveX(0, Camera.main.transform.position.x / 25f * 1f).SetEase(Ease.InOutQuad).AsyncWaitForCompletion();
-
-        matchingUI.SetActive(true);
+        Camera.main.transform.DOMoveX(0, Camera.main.transform.position.x / 25f * 1f).SetEase(Ease.InOutQuad).OnComplete(() => {
+            matchingUI.SetActive(true);
+        });
     }
 
     /// <summary>
     /// ロードアウトボタン
     /// </summary>
-    public async void OnClickLoadoutBtn() {
+    public void OnClickLoadoutBtn() {
         Camera.main.transform.DOKill();
 
         matchingUI.SetActive(false);
 
-        await Camera.main.transform.DOMoveX(25, (25f - Camera.main.transform.position.x) / 25f * 1f).SetEase(Ease.InOutQuad).AsyncWaitForCompletion();
-
-        loadoutUI.SetActive(true);
+        Camera.main.transform.DOMoveX(25, (25f - Camera.main.transform.position.x) / 25f * 1f).SetEase(Ease.InOutQuad).OnComplete(() => {
+            loadoutUI.SetActive(true);
+        });
     }
 
     /// <summary>
@@ -264,6 +274,7 @@ public class LobyUIManager : MonoBehaviour {
             findUserPanel.SetActive(false);
         }
         else {
+            friendUIHeaderText.text = "フレンドリスト";
             friendUI.SetActive(true);
 
             friendListPanel.SetActive(true);
