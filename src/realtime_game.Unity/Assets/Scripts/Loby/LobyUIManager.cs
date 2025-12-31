@@ -7,7 +7,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using TMPro;
+using UnityEditor.Experimental.GraphView;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.UI;
 using static CharacterSettings;
 using static GameManager;
@@ -43,9 +45,10 @@ public class LobyUIManager : MonoBehaviour {
     [SerializeField] private GameObject loadoutUI;
     [SerializeField] private GameObject itemSelects;
     [SerializeField] private GameObject selecter;
-    [SerializeField] private Image itemSelectImage;
+    [SerializeField] private Image SelectiongImage;
     [SerializeField] private GameObject itemSelectPrefab;
     [SerializeField] private Transform itemSelectParent;
+    [SerializeField] private SerializableDictionary<string, Image> skinPartSelectImages;
 
     // チーム招待用
     [SerializeField] private GameObject inviteNotificationPrefab;
@@ -79,6 +82,13 @@ public class LobyUIManager : MonoBehaviour {
         RoomModel.Instance.OnInvitedTeamUser += OnInvitedTeamUser;
         // 準備状態通知登録
         RoomModel.Instance.OnIsReadyedStatusUser += OnIsReadyedStatusUser;
+
+
+
+        // スキン選択ボタンの画像を設定
+        foreach (var item in skinPartSelectImages) {
+            item.Value.sprite = CharacterSettings.Instance.GetCharacterEquipmentSprite(item.Key);
+        }
     }
 
     private async void Update() {
@@ -526,8 +536,11 @@ public class LobyUIManager : MonoBehaviour {
                     createdUI.GetComponentInChildren<Text>().text = i.ToString();
                     // ボタンイベントを設定
                     int num = i;
-                    createdUI.GetComponent<Button>().onClick.AddListener(() => {
+                    createdUI.GetComponent<Button>().onClick.AddListener(async() => {
                         CharacterSettings.Instance.CharacterType = (PLAYER_CHARACTER_TYPE)Enum.ToObject(typeof(PLAYER_CHARACTER_TYPE), num);
+
+                        // 他のプレイヤーに通知
+                        await RoomModel.Instance.ChangeLoadoutLobyAsync(CharacterSettings.Instance.GetLoadoutData());
                     });
                 }
 
@@ -539,6 +552,7 @@ public class LobyUIManager : MonoBehaviour {
 
             case "Ultimate":
 
+
                 break;
 
             case "Hat":
@@ -547,17 +561,26 @@ public class LobyUIManager : MonoBehaviour {
             case "Hairstyle":
             case "Outerwear":
             case "Shoes":
+                // 選択中のアイテム画像設定
+                SelectiongImage.sprite = CharacterSettings.Instance.GetCharacterEquipmentSprite(select);
+
                 foreach (var item in CESO.characterEquipment.First(_=> _.name == select).equipment.ToList()) {
                     GameObject createdUI = Instantiate(itemSelectPrefab, parent: itemSelectParent);
                     // イメージ画像を設定
-                    createdUI.GetComponentInChildren<Image>();
+                    createdUI.GetComponentsInChildren<Image>().First(_ => _.gameObject.name == "ItemPanel").sprite = item.sprite;
                     createdUI.GetComponentInChildren<Text>().text = item.name;
+
                     // ボタンイベントを設定
                     Character_Skin_Part part = (Character_Skin_Part)Enum.Parse(typeof(Character_Skin_Part), select);
                     createdUI.GetComponent<Button>().onClick.AddListener(async () => {
+                        // 装備変更
                         CharacterSettings.Instance.ChangeCharacterEquipment(part, item.name);
-                        
-                        await RoomModel.Instance.ChangeLoadoutAsync(CharacterSettings.Instance.GetLoadoutData());
+                        // 選択中のアイテム画像設定
+                        SelectiongImage.sprite = CharacterSettings.Instance.GetCharacterEquipmentSprite(part.ToString());
+                        // 部位選択ボタンの画像設定
+                        skinPartSelectImages.First(_=> _.Key == select).Value.sprite = item.sprite;
+                        // 他のプレイヤーに通知
+                        await RoomModel.Instance.ChangeLoadoutLobyAsync(CharacterSettings.Instance.GetLoadoutData());
                     });
                 }
 

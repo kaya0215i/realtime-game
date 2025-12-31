@@ -112,7 +112,7 @@ public class GameManager : MonoBehaviour {
         RoomModel.Instance.OnFalsedObjectInteracting += this.OnFalsedObjectInteracting;
 
         // キャラクタータイプ変更通知
-        RoomModel.Instance.OnChangedCharacterTypeUser += this.OnChangedCharacterTypeUser;
+        RoomModel.Instance.OnChangedLoadoutUser += this.OnChangedLoadoutUser;
 
         // プレイヤーのリスポーン/死亡通知
         RoomModel.Instance.OnReSpownedPlayer += this.OnReSpownedPlayer;
@@ -158,7 +158,7 @@ public class GameManager : MonoBehaviour {
             RoomModel.Instance.OnDestroyedObject -= this.OnDestroyedObject;
             RoomModel.Instance.OnUpdatedObjectTransform -= this.OnUpdatedObjectTransform;
             RoomModel.Instance.OnFalsedObjectInteracting -= this.OnFalsedObjectInteracting;
-            RoomModel.Instance.OnChangedCharacterTypeUser -= this.OnChangedCharacterTypeUser;
+            RoomModel.Instance.OnChangedLoadoutUser -= this.OnChangedLoadoutUser;
             RoomModel.Instance.OnReSpownedPlayer -= this.OnReSpownedPlayer;
             RoomModel.Instance.OnDeadPlayer -= this.OnDeadPlayer;
             RoomModel.Instance.OnHitedPercentUser -= this.OnHitedPercentUser;
@@ -433,8 +433,10 @@ public class GameManager : MonoBehaviour {
         createdPlayerManager.Outerwear.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Outerwear").equipment.Find(_ => _.name == user.LoadoutData.OuterwearName).mesh;
         createdPlayerManager.Shoes.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Shoes").equipment.Find(_ => _.name == user.LoadoutData.ShoesName).mesh;
 
-        // キャラクタータイプ適応
+        // キャラクタータイプと武器適応
         createdPlayerManager.characterType = (PLAYER_CHARACTER_TYPE)Enum.ToObject(typeof(PLAYER_CHARACTER_TYPE), user.LoadoutData.CharacterTypeNum);
+        createdPlayerManager.subWeapon = (PLAYER_SUB_WEAPON)Enum.ToObject(typeof(PLAYER_SUB_WEAPON), user.LoadoutData.SubWeaponNum);
+        createdPlayerManager.ultimate = (PLAYER_ULTIMATE)Enum.ToObject(typeof(PLAYER_ULTIMATE), user.LoadoutData.UltimateNum);
 
         // フィールドで保持
         UserDataAndObject userDataAndObject = new UserDataAndObject() { joinedData = user, playerObject = characterObject };
@@ -537,8 +539,8 @@ public class GameManager : MonoBehaviour {
     /// [サーバー通知]
     /// オブジェクトを作成
     /// </summary>
-    private void OnCreatedObject(Guid connectionId, Guid objectId, int objectDataId, Vector3 pos, Quaternion rotate, UpdateObjectTypes updateType) {
-        GameObject objData = objectDataSO.objectDataList.FirstOrDefault(_ => _.id == objectDataId).objectData;
+    private void OnCreatedObject(Guid connectionId, Guid objectId, string objectName, Vector3 pos, Quaternion rotate, UpdateObjectTypes updateType) {
+        GameObject objData = objectDataSO.objectDataList.FirstOrDefault(_ => _.gameObject.name == objectName);
 
         GameObject obj;
 
@@ -613,20 +615,21 @@ public class GameManager : MonoBehaviour {
 
     /// <summary>
     /// [サーバー通知]
-    /// キャラクタータイプ変更通知
+    /// チームメンバーにロードアウト変更通知
     /// </summary>
-    private void OnChangedCharacterTypeUser(Guid connectionId, PLAYER_CHARACTER_TYPE type) {
+    public void OnChangedLoadoutUser(Guid connectionId, LoadoutData loadoutData) {
         if (!CharacterList.ContainsKey(connectionId)) {
             return;
         }
 
-        // タイプを変更
-        PlayerManager playerManager = CharacterList[connectionId].playerObject.GetComponent<PlayerManager>();
-        playerManager.characterType = type;
+        // フィールドを更新
+        CharacterList[connectionId].joinedData.LoadoutData = loadoutData;
 
-        foreach (var player in CharacterList.Values) {
-            Debug.Log(player.playerObject.name + " : " + player.playerObject.GetComponent<PlayerManager>().characterType);
-        }
+        // タイプと武器変更
+        PlayerManager playerManager = CharacterList[connectionId].playerObject.GetComponent<PlayerManager>();
+        playerManager.characterType = (PLAYER_CHARACTER_TYPE)Enum.ToObject(typeof(PLAYER_CHARACTER_TYPE), loadoutData.CharacterTypeNum);
+        playerManager.subWeapon = (PLAYER_SUB_WEAPON)Enum.ToObject(typeof(PLAYER_SUB_WEAPON), loadoutData.SubWeaponNum);
+        playerManager.ultimate = (PLAYER_ULTIMATE)Enum.ToObject(typeof(PLAYER_ULTIMATE), loadoutData.UltimateNum);
     }
 
     /// <summary>
@@ -659,6 +662,19 @@ public class GameManager : MonoBehaviour {
         playerManager.thisCharacterConnectionId = mySelf.ConnectionId;
         myCharacter.name = "Player_" + mySelf.JoinOrder;
 
+        // タイプと武器を設定
+        playerManager.characterType = CharacterSettings.Instance.CharacterType;
+        playerManager.subWeapon = CharacterSettings.Instance.SubWeapon;
+        playerManager.ultimate = CharacterSettings.Instance.Ultimate;
+
+        // メッシュ適応
+        playerManager.Hat.sharedMesh = CharacterSettings.Instance.Hat;
+        playerManager.Accessories.sharedMesh = CharacterSettings.Instance.Accessories;
+        playerManager.Pants.sharedMesh = CharacterSettings.Instance.Pants;
+        playerManager.Hairstyle.sharedMesh = CharacterSettings.Instance.Hairstyle;
+        playerManager.Outerwear.sharedMesh = CharacterSettings.Instance.Outerwear;
+        playerManager.Shoes.sharedMesh = CharacterSettings.Instance.Shoes;
+
         // フィールドで保持
         CharacterList[mySelf.ConnectionId].playerObject = myCharacter;
 
@@ -672,8 +688,26 @@ public class GameManager : MonoBehaviour {
     private void OnReSpownedPlayer(Guid connectionId) {
         GameObject characterObject = Instantiate(characterPrefab, parent: playerObjectParent); // インスタンス生成
         characterObject.transform.position = Vector3.zero;
-        characterObject.GetComponent<PlayerManager>().thisCharacterConnectionId = connectionId;
         characterObject.name = "Player_" + CharacterList[connectionId].joinedData.JoinOrder;
+
+        PlayerManager createdPlayerManager = characterObject.GetComponent<PlayerManager>();
+        createdPlayerManager.thisCharacterConnectionId = connectionId;
+
+        // タイプと武器を設定
+        createdPlayerManager.characterType = (PLAYER_CHARACTER_TYPE)Enum.ToObject(typeof(PLAYER_CHARACTER_TYPE), CharacterList[connectionId].joinedData.LoadoutData.CharacterTypeNum);
+        createdPlayerManager.subWeapon = (PLAYER_SUB_WEAPON)Enum.ToObject(typeof(PLAYER_SUB_WEAPON), CharacterList[connectionId].joinedData.LoadoutData.SubWeaponNum);
+        createdPlayerManager.ultimate = (PLAYER_ULTIMATE)Enum.ToObject(typeof(PLAYER_ULTIMATE), CharacterList[connectionId].joinedData.LoadoutData.UltimateNum);
+
+        // キャラクター装備メッシュ
+        CharacterEquipmentSO CESO = CharacterSettings.Instance.CESO;
+
+        // メッシュ適応
+        createdPlayerManager.Hat.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Hat").equipment.Find(_ => _.name == CharacterList[connectionId].joinedData.LoadoutData.HatName).mesh;
+        createdPlayerManager.Accessories.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Accessories").equipment.Find(_ => _.name == CharacterList[connectionId].joinedData.LoadoutData.AccessoriesName).mesh;
+        createdPlayerManager.Pants.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Pants").equipment.Find(_ => _.name == CharacterList[connectionId].joinedData.LoadoutData.PantsName).mesh;
+        createdPlayerManager.Hairstyle.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Hairstyle").equipment.Find(_ => _.name == CharacterList[connectionId].joinedData.LoadoutData.HairstyleName).mesh;
+        createdPlayerManager.Outerwear.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Outerwear").equipment.Find(_ => _.name == CharacterList[connectionId].joinedData.LoadoutData.OuterwearName).mesh;
+        createdPlayerManager.Shoes.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Shoes").equipment.Find(_ => _.name == CharacterList[connectionId].joinedData.LoadoutData.ShoesName).mesh;
 
         // フィールドで保持
         CharacterList[connectionId].playerObject = characterObject;

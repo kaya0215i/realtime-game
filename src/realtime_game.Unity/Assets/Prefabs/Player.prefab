@@ -3123,6 +3123,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5ed60a87a79a33741ae62925395927cf, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  VFXList:
+  - {fileID: 8224593310722358471, guid: 1a9dd0f39c6665c409b5adbc0cb09363, type: 3}
   Hat: {fileID: 2533621869107869769}
   Accessories: {fileID: 6881309748027650490}
   Pants: {fileID: 8189251665973485538}
@@ -3130,6 +3132,8 @@ MonoBehaviour:
   Outerwear: {fileID: 2138293883023760189}
   Shoes: {fileID: 3271352496129234911}
   characterType: 1
+  subWeapon: 0
+  ultimate: 0
 --- !u!114 &8783477379100363153
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3142,6 +3146,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ade90b73085378f44b27c67ee5ec736b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  characterDataSO: {fileID: 11400000, guid: ddf552bf3859c684c9453b212249ddbf, type: 2}
   _head: {fileID: 6551762077848392561}
   _body: {fileID: 2331169120015142827}
   moveSpeed: 5
@@ -3165,6 +3170,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 08ea4cba1f76de849bce182a2e2b367d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  isReloading: 0
 --- !u!95 &639803890841333425
 Animator:
   serializedVersion: 7

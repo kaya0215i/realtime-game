@@ -111,11 +111,6 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
 
 
         /// <summary>
-        /// キャラクタータイプ変更通知
-        /// </summary>
-        public void OnChangeCharacterType(Guid connectionId, int typeNum);
-
-        /// <summary>
         /// プレイヤーのリスポーン通知
         /// </summary>
         public void OnReSpownPlayer(Guid connectionId);
@@ -138,7 +133,7 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         /// <summary>
         /// オブジェクトの作成通知
         /// </summary>
-        public void OnCreateObject(Guid connectionId, Guid objectId, int objectDataId, Vector3 pos, Quaternion rotate, int updateTypeNum);
+        public void OnCreateObject(Guid connectionId, Guid objectId, string objectName, Vector3 pos, Quaternion rotate, int updateTypeNum);
 
         /// <summary>
         /// オブジェクトのInteracterをfalseにする通知

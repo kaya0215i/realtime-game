@@ -17,9 +17,18 @@ public class UserModel : BaseModel {
 
     // シングルトンにする
     private static UserModel instance;
+
+    private static bool isQuitting;
+    private static bool isShuttingDown;
+
     public static UserModel Instance {
         get {
-            if(instance == null) {
+            // アプリ終了/破棄中は新規生成しない
+            if (isQuitting || isShuttingDown) {
+                return null;
+            }
+
+            if (instance == null) {
                 GameObject obj = new GameObject("UserModel");
                 instance = obj.AddComponent<UserModel>();
 
@@ -27,6 +36,17 @@ public class UserModel : BaseModel {
             }
             return instance;
         }
+    }
+
+    private void OnDestroy() {
+        if (instance == this) {
+            isShuttingDown = true;
+            instance = null;
+        }
+    }
+
+    private void OnApplicationQuit() {
+        isQuitting = true;
     }
 
     /// <summary>

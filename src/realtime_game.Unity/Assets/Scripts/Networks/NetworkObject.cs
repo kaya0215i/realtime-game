@@ -22,11 +22,8 @@ public class NetworkObject : MonoBehaviour {
     // 経過時間タイマー
     private float updateTransformTime;
 
-    // このオブジェクトのデータID
-    [SerializeField] public int myObjectDataId;
-
     // このオブジェクトのデータ
-    private ObjectData myObjectData;
+    private GameObject myObject;
 
     // このオブジェクトの親Transformの名前
     [SerializeField] public string parentTransformName;
@@ -57,9 +54,9 @@ public class NetworkObject : MonoBehaviour {
         GameManager = GameObject.Find("GameManager").GetComponent<GameManager>();
         myRb = this.GetComponent<Rigidbody>();
 
-        myObjectData = GameManager.objectDataSO.objectDataList.FirstOrDefault(_ => _.id == this.myObjectDataId);
+        myObject = GameManager.objectDataSO.objectDataList.FirstOrDefault(_ => this.gameObject.name.StartsWith(_.gameObject.name));
         // オブジェとが見つからなければreturn
-        if(myObjectData == null) {
+        if(myObject == null) {
             Debug.Log($"{this.gameObject.name} : オブジェクトがSOから見つかりませんでした");
             Destroy(this.gameObject);
             return;
@@ -83,7 +80,7 @@ public class NetworkObject : MonoBehaviour {
                 break;
         }
 
-        myObjectId = await RoomModel.Instance.CreateObjectAsync(myObjectData.id, this.gameObject.transform.position, this.gameObject.transform.rotation, updateType);
+        myObjectId = await RoomModel.Instance.CreateObjectAsync(myObject.name, this.gameObject.transform.position, this.gameObject.transform.rotation, updateType);
 
         if(myObjectId == Guid.Empty) {
             enabled = false;
@@ -122,7 +119,7 @@ public class NetworkObject : MonoBehaviour {
     private async void OnDestroy() {
         if (RoomModel.Instance == null ||
            !GameManager.isJoined ||
-           myObjectData == null) {
+           myObject == null) {
             return;
         }
 

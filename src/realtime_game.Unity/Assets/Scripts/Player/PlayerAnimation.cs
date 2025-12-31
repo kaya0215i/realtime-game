@@ -44,6 +44,9 @@ public class PlayerAnimation : MonoBehaviour {
     /// アニメーション通知(Trigger)
     /// </summary>
     public void OnAnimationTrigger(string animName) {
+        if (myAnimator == null) {
+            return;
+        }
         myAnimator.SetTrigger(animName);
     }
 
@@ -52,6 +55,9 @@ public class PlayerAnimation : MonoBehaviour {
     /// アニメーション通知(State)
     /// </summary>
     public void OnAnimationState(int state) {
+        if (myAnimator == null) {
+            return;
+        }
         myAnimator.SetInteger("State", state);
     }
 

@@ -15,9 +15,18 @@ using static NetworkObject;
 public class RoomModel : BaseModel, IRoomHubReceiver {
     // シングルトンにする
     private static RoomModel instance;
+
+    private static bool isQuitting;
+    private static bool isShuttingDown;
+
     public static RoomModel Instance {
         get {
-            if(instance == null) {
+            // アプリ終了/破棄中は新規生成しない
+            if (isQuitting || isShuttingDown) {
+                return null;
+            }
+
+            if (instance == null) {
                 GameObject obj = new GameObject("RoomModel");
                 instance = obj.AddComponent<RoomModel>();
                 DontDestroyOnLoad(obj);
@@ -84,7 +93,7 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     public Action<Guid, Vector3, Quaternion, Quaternion> OnUpdatedTransformUser { get; set; }
 
     // オブジェクトの作成通知
-    public Action<Guid, Guid, int, Vector3, Quaternion, UpdateObjectTypes> OnCreatedObject { get; set; }
+    public Action<Guid, Guid, string, Vector3, Quaternion, UpdateObjectTypes> OnCreatedObject { get; set; }
 
     // オブジェクトの破棄通知
     public Action<Guid> OnDestroyedObject { get; set; }
@@ -103,9 +112,6 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
 
     // ゲームタイマー更新通知
     public Action<float> OnUpdatedGameTimer { get; set; }
-
-    // キャラクタータイプ変更通知
-    public Action<Guid, PLAYER_CHARACTER_TYPE> OnChangedCharacterTypeUser { get; set; }
 
     // プレイヤーのリスポーン通知
     public Action<Guid> OnReSpownedPlayer { get; set; }
@@ -145,6 +151,11 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     /// 破棄処理
     /// </summary>
     private void OnDestroy() {
+        if (instance == this) {
+            isShuttingDown = true;
+            instance = null;
+        }
+
         DisconnectAsync().Forget();
     }
 
@@ -152,6 +163,7 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     /// ゲーム終了時
     /// </summary>
     private void OnApplicationQuit() {
+        isQuitting = true;
         DisconnectAsync().Forget();
     }
 
@@ -322,11 +334,11 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     }
 
     /// <summary>
-    /// ロードアウトを変更
+    /// ロードアウトを変更 (ロビー)
     /// </summary>
-    public async UniTask ChangeLoadoutAsync(LoadoutData loadoutData) {
+    public async UniTask ChangeLoadoutLobyAsync(LoadoutData loadoutData) {
         if (roomHub != null) {
-            await roomHub.ChangeLoadoutAsync(loadoutData);
+            await roomHub.ChangeLoadoutLobyAsync(loadoutData);
         }
     }
 
@@ -592,21 +604,11 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
 
 
     /// <summary>
-    /// キャラクタータイプ変更
+    /// ロードアウトを変更 (インゲーム)
     /// </summary>
-    public async UniTask ChangeCharacterTypeAsync(PLAYER_CHARACTER_TYPE type) {
-        if (roomHub  != null) {
-            await roomHub.ChangeCharacterTypeAsync((int)type);
-        }
-    }
-
-    /// <summary>
-    /// [サーバー通知]
-    /// キャラクタータイプ変更通知
-    /// </summary>
-    public void OnChangeCharacterType(Guid connectionId, int typeNum) {
-        if (OnChangedCharacterTypeUser  != null) {
-            OnChangedCharacterTypeUser(connectionId, (PLAYER_CHARACTER_TYPE)Enum.ToObject(typeof(PLAYER_CHARACTER_TYPE), typeNum));
+    public async UniTask ChangeLoadoutGameAsync(LoadoutData loadoutData) {
+        if (roomHub != null) {
+            await roomHub.ChangeLoadoutGameAsync(loadoutData);
         }
     }
 
@@ -693,11 +695,11 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     /// <summary>
     /// オブジェクトの作成
     /// </summary>
-    public async UniTask<Guid> CreateObjectAsync(int objectDataId, Vector3 pos, Quaternion rotate, UpdateObjectTypes updateType) {
+    public async UniTask<Guid> CreateObjectAsync(string objectName, Vector3 pos, Quaternion rotate, UpdateObjectTypes updateType) {
         Guid objectId;
 
         if (roomHub != null) {
-            objectId = await roomHub.CreateObjectAsync(objectDataId, pos, rotate, (int)updateType);
+            objectId = await roomHub.CreateObjectAsync(objectName, pos, rotate, (int)updateType);
         }
         else {
             objectId = Guid.Empty;
@@ -710,9 +712,9 @@ public class RoomModel : BaseModel, IRoomHubReceiver {
     /// [サーバー通知]
     /// オブジェクトの作成通知
     /// </summary>
-    public void OnCreateObject(Guid connectionId, Guid objectId, int objectDataId, Vector3 pos, Quaternion rotate, int updateTypeNum) {
+    public void OnCreateObject(Guid connectionId, Guid objectId, string objectName, Vector3 pos, Quaternion rotate, int updateTypeNum) {
         if (OnCreatedObject != null) {
-            OnCreatedObject(connectionId, objectId, objectDataId, pos, rotate, (UpdateObjectTypes)Enum.ToObject(typeof(UpdateObjectTypes), updateTypeNum));
+            OnCreatedObject(connectionId, objectId, objectName, pos, rotate, (UpdateObjectTypes)Enum.ToObject(typeof(UpdateObjectTypes), updateTypeNum));
         }
     }
 

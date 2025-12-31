@@ -382,9 +382,9 @@ namespace realtime_game.Server.StreamingHubs {
         }
 
         /// <summary>
-        /// ロードアウトを変更
+        /// ロードアウトを変更 (ロビー)
         /// </summary>
-        public async Task ChangeLoadoutAsync(LoadoutData loadoutData) {
+        public async Task ChangeLoadoutLobyAsync(LoadoutData loadoutData) {
             // コンテキストを取得
             GetContext("Loby");
 
@@ -650,15 +650,14 @@ namespace realtime_game.Server.StreamingHubs {
         }
 
         /// <summary>
-        /// キャラクタータイプ変更
+        /// ロードアウトを変更 (インゲーム)
         /// </summary>
-        public Task ChangeCharacterTypeAsync(int typeNum) {
-            this._roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.LoadoutData.CharacterTypeNum = typeNum;
+        public async Task ChangeLoadoutGameAsync(LoadoutData loadoutData) {
+            // フィールドで保持
+            this._roomContext.RoomUserDataList[this.ConnectionId].JoinedUser.LoadoutData = loadoutData;
 
-            // キャラクタータイプ変更を自分以外に通知
-            this._roomContext.Group.Except([this.ConnectionId]).OnChangeCharacterType(this.ConnectionId, typeNum);
-
-            return Task.CompletedTask;
+            // チームメンバーに準備完了状態を通知
+            this._roomContext.Group.Except([this.ConnectionId]).OnChangeLoadout(this.ConnectionId, loadoutData);
         }
 
         /// <summary>
@@ -715,7 +714,7 @@ namespace realtime_game.Server.StreamingHubs {
         /// <summary>
         /// オブジェクトの作成
         /// </summary>
-        public async Task<Guid> CreateObjectAsync(int objectDataId, Vector3 pos, Quaternion rotate, int updateTypeNum) {
+        public async Task<Guid> CreateObjectAsync(string objectName, Vector3 pos, Quaternion rotate, int updateTypeNum) {
             // ルームコンテキストにオブジェクト情報を登録
             Guid objectId = Guid.NewGuid();
 
@@ -741,7 +740,7 @@ namespace realtime_game.Server.StreamingHubs {
             this._roomContext.RoomObjectDataList[objectId] = roomObjectData;
 
             // 自分以外のルーム参加者全員に、オブジェクトの作成通知を送信
-            this._roomContext.Group.Except([this.ConnectionId]).OnCreateObject(this.ConnectionId, objectId, objectDataId, pos, rotate, updateTypeNum);
+            this._roomContext.Group.Except([this.ConnectionId]).OnCreateObject(this.ConnectionId, objectId, objectName, pos, rotate, updateTypeNum);
 
             return objectId;
         }
@@ -831,6 +830,10 @@ namespace realtime_game.Server.StreamingHubs {
         /// アニメーション同期(Trigger)
         /// </summary>
         public Task AnimationTriggerAsync(string animName) {
+            if (!this._roomContext.RoomUserDataList.ContainsKey(this.ConnectionId)) {
+                return Task.CompletedTask;
+            }
+
             // 自分以外のメンバーに通知
             this._roomContext.Group.Except([this.ConnectionId]).OnAnimationTrigger(this.ConnectionId, animName);
 
@@ -841,6 +844,10 @@ namespace realtime_game.Server.StreamingHubs {
         /// アニメーション同期(State)
         /// </summary>
         public Task AnimationStateAsync(int state) {
+            if (!this._roomContext.RoomUserDataList.ContainsKey(this.ConnectionId)) {
+                return Task.CompletedTask;
+            }
+
             // 自分以外のメンバーに通知
             this._roomContext.Group.Except([this.ConnectionId]).OnAnimationState(this.ConnectionId, state);
 

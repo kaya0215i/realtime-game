@@ -1,6 +1,8 @@
 using Cysharp.Threading.Tasks;
 using DG.Tweening;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using TMPro;
 using UnityEngine;
@@ -14,6 +16,11 @@ public class PlayerManager : MonoBehaviour {
     private Rigidbody myRb;
 
     [NonSerialized] private GameUIManager gameUIManager;
+
+    // VFXのリスト
+    [SerializeField] private List<GameObject> VFXList;
+    // VFXの親Transform
+    private Transform VFXParent;
 
     // このキャラクターのコネクションID
     [NonSerialized] public Guid thisCharacterConnectionId;
@@ -41,6 +48,10 @@ public class PlayerManager : MonoBehaviour {
 
     // キャラクターのタイプ
     public PLAYER_CHARACTER_TYPE characterType = PLAYER_CHARACTER_TYPE.AssaultRifle;
+    // キャラクターのサブ武器
+    public PLAYER_SUB_WEAPON subWeapon = PLAYER_SUB_WEAPON.Grenade;
+    // キャラクターのアルティメット
+    public PLAYER_ULTIMATE ultimate = PLAYER_ULTIMATE.Meteor;
 
     // 最後に自分に弾を当てたプレイヤーのコネクションID
     private Guid lastHitPlayerConnectionId = Guid.Empty;
@@ -68,6 +79,8 @@ public class PlayerManager : MonoBehaviour {
         myRb = this.GetComponent <Rigidbody>();
 
         gameUIManager = GameObject.Find("UICanvas").GetComponent<GameUIManager>();
+
+        VFXParent = GameObject.Find("VFX").transform;
 
         headUpHitPercentText = GetComponentInChildren<TextMeshProUGUI>();
     }
@@ -98,15 +111,18 @@ public class PlayerManager : MonoBehaviour {
             await RoomModel.Instance.UpdateUserTransformAsync(this.transform.position, this.transform.rotation, cameraRotate);
         }
 
-        // プレイヤーのキャラクタータイプが変わったら
-        if (characterType != CharacterSettings.Instance.CharacterType) {
-            // キャラクタータイプ変更
+        // プレイヤーのキャラクタータイプか武器が変わったら
+        if (characterType != CharacterSettings.Instance.CharacterType ||
+            subWeapon != CharacterSettings.Instance.SubWeapon || 
+            ultimate != CharacterSettings.Instance.Ultimate) {
+            // 変更を適応
             characterType = CharacterSettings.Instance.CharacterType;
-            Debug.Log("キャラクタータイプ変更");
+            subWeapon = CharacterSettings.Instance.SubWeapon;
+            ultimate = CharacterSettings.Instance.Ultimate;
 
             playerController.SetPlayerCharacterType();
 
-            await RoomModel.Instance.ChangeCharacterTypeAsync(characterType);
+            await RoomModel.Instance.ChangeLoadoutGameAsync(CharacterSettings.Instance.GetLoadoutData());
         }
 
         if (lastHitPlayerConnectionId != Guid.Empty &&
@@ -165,7 +181,7 @@ public class PlayerManager : MonoBehaviour {
             // 追加の吹っ飛び
             BulletController bulletController = collision.gameObject.GetComponent<BulletController>();
             // 弾のライフが多いほど吹っ飛ぶように
-            float addPowerFromLife = 1 + (bulletController.Life / 100);
+            float addPowerFromLife = bulletController.Life / bulletController.MaxLife;
 
             // ヒットパーセントが高いほど吹っ飛ぶように
             float addPowerFromHitPercent = 1 + (HitPercent / 50);
@@ -174,13 +190,16 @@ public class PlayerManager : MonoBehaviour {
             myRb.linearVelocity = Vector3.zero;
             myRb.AddForce((-this.transform.forward + this.transform.up) * bulletController.SmashPower * addPowerFromLife * addPowerFromHitPercent, ForceMode.Impulse);
 
+            // VFXの生成
+            Instantiate(VFXList.First(_ => _.gameObject.name == "Hit_VFX"), collision.transform.position, Quaternion.identity, VFXParent);
+
             // ゲームスタートしてたら
             if (gameManager.IsGameStartShared) {
                 // 自分に当てたプレイヤーのコネクションIDを保持
                 lastHitPlayerConnectionId = netObj.createrConnectionId;
 
                 // ヒットパーセントを増やす
-                HitPercent += bulletController.AttackPower;
+                HitPercent += bulletController.AttackPower * (bulletController.Life / bulletController.MaxLife);
 
                 // 死因に設定
                 deathCause = Death_Cause.Shot;
@@ -190,7 +209,7 @@ public class PlayerManager : MonoBehaviour {
             }
 
             // 弾を削除
-            if (bulletController.gameObject != null) {
+            if (bulletController != null) {
                 bulletController.DestroyThisObject();
             }
         }

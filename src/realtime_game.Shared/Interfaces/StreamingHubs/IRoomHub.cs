@@ -73,9 +73,9 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         Task InviteTeamFriendAsync(Guid targetConnectionId, Guid teamId);
 
         /// <summary>
-        /// ロードアウトを変更
+        /// ロードアウトを変更 (ロビー)
         /// </summary>
-        Task ChangeLoadoutAsync(LoadoutData equipmentData);
+        Task ChangeLoadoutLobyAsync(LoadoutData equipmentData);
 
         /// <summary>
         /// 準備状態を通知
@@ -135,9 +135,9 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         Task UpdateGameTimerAsync(float deltaTime);
 
         /// <summary>
-        /// キャラクタータイプ変更
+        /// ロードアウトを変更 (インゲーム)
         /// </summary>
-        Task ChangeCharacterTypeAsync(int typeNum);
+        Task ChangeLoadoutGameAsync(LoadoutData equipmentData);
 
         /// <summary>
         /// プレイヤーのリスポーン
@@ -162,7 +162,7 @@ namespace realtime_game.Shared.Interfaces.StreamingHubs {
         /// <summary>
         /// オブジェクトの作成
         /// </summary>
-        Task<Guid> CreateObjectAsync(int objectDataId, Vector3 pos, Quaternion rotate, int updateTypeNum);
+        Task<Guid> CreateObjectAsync(string objectName, Vector3 pos, Quaternion rotate, int updateTypeNum);
 
         /// <summary>
         /// オブジェクトの破棄

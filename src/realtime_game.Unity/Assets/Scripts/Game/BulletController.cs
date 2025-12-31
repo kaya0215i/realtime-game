@@ -1,3 +1,4 @@
+using System.Linq;
 using UnityEngine;
 using static CharacterSettings;
 
@@ -5,6 +6,15 @@ public class BulletController : MonoBehaviour {
     private NetworkObject networkObject;
     private Rigidbody myRb;
 
+    // VFX
+    [SerializeField] private GameObject fieldHitVFX;
+    // VFXの親Transform
+    private Transform VFXParent;
+
+    // 弾のデータ
+    [SerializeField] private BulletDataSO bulletDataSO;
+
+    public float MaxLife { private set; get; }
     public float Life { private set; get; }
     public float AttackPower { private set; get; }
     public float SmashPower { private set; get; }
@@ -18,6 +28,8 @@ public class BulletController : MonoBehaviour {
         networkObject = this.GetComponent<NetworkObject>();
         myRb = this.GetComponent<Rigidbody>();
 
+        VFXParent = GameObject.Find("VFX").transform;
+
         // 撃ったプレイヤーのPlayerManagerを取得
         var playerManager = networkObject.GameManager.FindCharacterObject(networkObject.createrConnectionId).GetComponent<PlayerManager>();
         if (playerManager == null) {
@@ -27,28 +39,12 @@ public class BulletController : MonoBehaviour {
         PLAYER_CHARACTER_TYPE createrCharacterType = playerManager.characterType;
 
         // キャラクターのタイプをもとに設定
-        switch (createrCharacterType) {
-            case PLAYER_CHARACTER_TYPE.AssaultRifle:
-                Life = 3f;
-                AttackPower = 6.5f;
-                SmashPower = 5f;
-                ShotPower = 30f;
-                break;
-
-            case PLAYER_CHARACTER_TYPE.ShotGun:
-                Life = 0.3f;
-                AttackPower = 5f;
-                SmashPower = 1.15f;
-                ShotPower = 50f;
-                break;
-
-            case PLAYER_CHARACTER_TYPE.SniperRifle:
-                Life = 7f;
-                AttackPower = 35f;
-                SmashPower = 7.5f;
-                ShotPower = 50f;
-                break;
-        }
+        BulletData bulletData = bulletDataSO.bulletDataList.First(_=>_.characterType == createrCharacterType);
+        MaxLife = bulletData.Life;
+        Life = bulletData.Life;
+        AttackPower = bulletData.AttackPower;
+        SmashPower = bulletData.SmashPower;
+        ShotPower = bulletData.ShotPower;
 
         // 自分の弾だったら
         if (networkObject.isCreater) {
@@ -81,12 +77,12 @@ public class BulletController : MonoBehaviour {
     }
 
     private void Update() {
+        Life -= Time.deltaTime;
+
         // 作成者でなければreturn
         if (!networkObject.IsCreater()) {
             return;
         }
-
-        Life -= Time.deltaTime;
 
         // lifeの時間経過したら削除
         if (Life <= 0) {
@@ -102,6 +98,9 @@ public class BulletController : MonoBehaviour {
 
         // プレイヤー以外に当たったら
         if (!collision.gameObject.CompareTag("Player")) {
+            // VFX生成
+            Instantiate(fieldHitVFX, this.transform.position, Quaternion.identity, VFXParent);
+
             Destroy(this.gameObject);
         }
     }

@@ -574,5 +574,4 @@ public class LobyManager : MonoBehaviour {
         lPM.Outerwear.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Outerwear").equipment.Find(_ => _.name == loadoutData.OuterwearName).mesh;
         lPM.Shoes.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Shoes").equipment.Find(_ => _.name == loadoutData.ShoesName).mesh;
     }
-
 }

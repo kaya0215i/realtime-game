@@ -2,15 +2,23 @@ using Cysharp.Threading.Tasks;
 using realtime_game.Shared.Interfaces.StreamingHubs;
 using System;
 using System.Linq;
-using System.Threading.Tasks;
-using System.Xml.Serialization;
 using UnityEngine;
 
 public class CharacterSettings : MonoBehaviour {
     // シングルトンにする
     private static CharacterSettings instance;
+
+    private static bool isQuitting;
+    private static bool isShuttingDown;
+
     public static CharacterSettings Instance {
         get {
+
+            // アプリ終了/破棄中は新規生成しない
+            if (isQuitting || isShuttingDown) {
+                return null;
+            }
+
             if (instance == null) {
                 GameObject obj = new GameObject("CharacterData");
                 instance = obj.AddComponent<CharacterSettings>();
@@ -20,9 +28,27 @@ public class CharacterSettings : MonoBehaviour {
         }
     }
 
+    private void OnDestroy() {
+        if (instance == this) {
+            isShuttingDown = true;
+            instance = null;
+        }
+    }
+
+    private void OnApplicationQuit() {
+        isQuitting = true;
+    }
+
+
     // カメラ感度
     public float SensX = 30f; 
     public float SensY = 30f;
+
+    /*
+     * 
+     * キャラクターのタイプ
+     * 
+     */
 
     // キャラクタータイプの列挙型
     public enum PLAYER_CHARACTER_TYPE {
@@ -33,6 +59,35 @@ public class CharacterSettings : MonoBehaviour {
 
     // キャラクターのタイプ
     public PLAYER_CHARACTER_TYPE CharacterType = PLAYER_CHARACTER_TYPE.AssaultRifle;
+
+    /*
+     * 
+     * キャラクターのサブ武器
+     * 
+     */
+
+    // サブ武器の列挙型
+    public enum PLAYER_SUB_WEAPON {
+        Grenade,
+        ImpactGrenade,
+    }
+
+    // サブ武器
+    public PLAYER_SUB_WEAPON SubWeapon = PLAYER_SUB_WEAPON.Grenade;
+
+    /*
+     * 
+     * キャラクターのアルティメット
+     * 
+     */
+
+    // アルティメットの列挙型
+    public enum PLAYER_ULTIMATE {
+        Meteor,
+    }
+
+    // アルティメット
+    public PLAYER_ULTIMATE Ultimate = PLAYER_ULTIMATE.Meteor;
 
     /*
      * 
@@ -88,6 +143,8 @@ public class CharacterSettings : MonoBehaviour {
     public LoadoutData GetLoadoutData() {
         LoadoutData loadoutData = new LoadoutData() {
             CharacterTypeNum = (int)CharacterType,
+            SubWeaponNum = (int)SubWeapon,
+            UltimateNum = (int)Ultimate,
             HatName = CESO.characterEquipment.FirstOrDefault(_ => _.name == "Hat").equipment.FirstOrDefault(_ => _.mesh == Hat).name,
             AccessoriesName = CESO.characterEquipment.FirstOrDefault(_ => _.name == "Accessories").equipment.FirstOrDefault(_ => _.mesh == Accessories).name,
             PantsName = CESO.characterEquipment.FirstOrDefault(_ => _.name == "Pants").equipment.FirstOrDefault(_ => _.mesh == Pants).name,
@@ -123,5 +180,40 @@ public class CharacterSettings : MonoBehaviour {
                 Shoes = CESO.characterEquipment.FirstOrDefault(_ => _.name == "Shoes").equipment.FirstOrDefault(_ => _.name == name).mesh;
                 break;
         }
+    }
+
+    /// <summary>
+    /// 装備しているスキンのスプライトを返す
+    /// </summary>
+    public Sprite GetCharacterEquipmentSprite(string part) {
+        Sprite sprite = null;
+
+        switch (part) {
+            case "Hat":
+                sprite = CESO.characterEquipment.FirstOrDefault(_ => _.name == part).equipment.FirstOrDefault(_ => _.mesh == Hat).sprite;
+                break;
+
+            case "Accessories":
+                sprite = CESO.characterEquipment.FirstOrDefault(_ => _.name == part).equipment.FirstOrDefault(_ => _.mesh == Accessories).sprite;
+                break;
+
+            case "Pants":
+                sprite = CESO.characterEquipment.FirstOrDefault(_ => _.name == part).equipment.FirstOrDefault(_ => _.mesh == Pants).sprite;
+                break;
+
+            case "Hairstyle":
+                sprite = CESO.characterEquipment.FirstOrDefault(_ => _.name == part).equipment.FirstOrDefault(_ => _.mesh == Hairstyle).sprite;
+                break;
+
+            case "Outerwear":
+                sprite = CESO.characterEquipment.FirstOrDefault(_ => _.name == part).equipment.FirstOrDefault(_ => _.mesh == Outerwear).sprite;
+                break;
+
+            case "Shoes":
+                sprite = CESO.characterEquipment.FirstOrDefault(_ => _.name == part).equipment.FirstOrDefault(_ => _.mesh == Shoes).sprite;
+                break;
+        }
+
+        return sprite;
     }
 }

@@ -17,10 +17,13 @@ public class PlayerController : MonoBehaviour {
 
     // プレイヤーの入力
     private PlayerInputActions playerInputActions;
-
+    // インタラクト中のオブジェクト
     private NetworkObject myInteractedObj;
 
     [NonSerialized] private GameUIManager uiManager;
+
+    // キャラクターデータ
+    [SerializeField] private CharacterDataSO characterDataSO;
 
     // プレイヤーのTransform
     [SerializeField] public Transform _head;
@@ -136,13 +139,17 @@ public class PlayerController : MonoBehaviour {
 
         Jump();
 
-        Interact();
+        //Interact();
 
-        DisInteract();
+        //DisInteract();
 
         ReloadBullet();
 
         ShotBullet();
+
+        UseSubWeapon();
+
+        UseAltimate();
     }
 
     /// <summary>
@@ -168,25 +175,10 @@ public class PlayerController : MonoBehaviour {
     /// キャラクターのタイプをもとに設定
     /// </summary>
     public void SetPlayerCharacterType() {
-        switch (playerManager.characterType) {
-            case PLAYER_CHARACTER_TYPE.AssaultRifle:
-                maxBulletAmount = 15;
-                shotCoolTime = 0.5f;
-                reloadTime = 2;
-                break;
-
-            case PLAYER_CHARACTER_TYPE.ShotGun:
-                maxBulletAmount = 5;
-                shotCoolTime = 1;
-                reloadTime = 0.5f;
-                break;
-
-            case PLAYER_CHARACTER_TYPE.SniperRifle:
-                maxBulletAmount = 5;
-                shotCoolTime = 2f;
-                reloadTime = 3f;
-                break;
-        }
+        CharacterData characterData = characterDataSO.characterDataList.First(_=>_.characterType == playerManager.characterType);
+        maxBulletAmount = characterData.maxBulletAmount;
+        shotCoolTime = characterData.shotCoolTime;
+        reloadTime = characterData.reloadTime;
 
         // 弾数を設定
         bulletAmount = maxBulletAmount;
@@ -319,7 +311,7 @@ public class PlayerController : MonoBehaviour {
 
                     GameObject createdBullet = Instantiate(bulletList.First(_ => _.name == bulletName), Camera.main.transform.position + Camera.main.transform.forward, _head.transform.rotation, bulletParent);
                     BulletController createdBulletController = createdBullet.GetComponent<BulletController>();
-
+                    // 弾投げアニメーション
                     playerAnimation.ShotAnimation();
                 }
 
@@ -340,7 +332,7 @@ public class PlayerController : MonoBehaviour {
                         GameObject createdBullet = Instantiate(bulletList.First(_ => _.name == bulletName), Camera.main.transform.position + Camera.main.transform.forward, _head.transform.rotation, bulletParent);
                         BulletController createdBulletController = createdBullet.GetComponent<BulletController>();
                     }
-
+                    // 弾投げアニメーション
                     playerAnimation.ShotAnimation();
                 }
 
@@ -359,7 +351,7 @@ public class PlayerController : MonoBehaviour {
 
                     GameObject createdBullet = Instantiate(bulletList.First(_ => _.name == bulletName), Camera.main.transform.position + Camera.main.transform.forward, _head.transform.rotation, bulletParent);
                     BulletController createdBulletController = createdBullet.GetComponent<BulletController>();
-
+                    // 弾投げアニメーション
                     playerAnimation.ShotAnimation();
                 }
 
@@ -382,6 +374,7 @@ public class PlayerController : MonoBehaviour {
         }
 
         if (playerInputActions.Player.Reload.triggered) {
+            // リロードアニメーション開始
             playerAnimation.StartReloadAnimation();
 
             // キャラクターのタイプごとにリロード方法を変更
@@ -396,8 +389,6 @@ public class PlayerController : MonoBehaviour {
                     catch {
                         isReloading = false;
                         reloadCTS = new CancellationTokenSource();
-
-                        playerAnimation.EndReloadAnimation();
                         return;
                     }
 
@@ -413,8 +404,6 @@ public class PlayerController : MonoBehaviour {
                         catch {
                             isReloading = false;
                             reloadCTS = new CancellationTokenSource();
-
-                            playerAnimation.EndReloadAnimation();
                             return;
                         }
                     }
@@ -424,7 +413,7 @@ public class PlayerController : MonoBehaviour {
 
             // 弾数をUIに反映
             uiManager.UpdateBulletAmountText(bulletAmount, maxBulletAmount);
-
+            // リロードアニメーション終了
             playerAnimation.EndReloadAnimation();
         }
     }
@@ -457,6 +446,20 @@ public class PlayerController : MonoBehaviour {
         }
 
         isReloading = false;
+    }
+
+    /// <summary>
+    /// サブ武器使用
+    /// </summary>
+    private void UseSubWeapon() {
+
+    }
+
+    /// <summary>
+    /// アルティメット使用
+    /// </summary>
+    private void UseAltimate() {
+
     }
 
     /// <summary>

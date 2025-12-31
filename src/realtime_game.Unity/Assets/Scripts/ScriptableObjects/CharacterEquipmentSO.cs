@@ -17,4 +17,5 @@ public class Equipment {
     public int id;
     public string name;
     public Mesh mesh;
+    public Sprite sprite;
 }
