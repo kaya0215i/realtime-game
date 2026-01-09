@@ -44,6 +44,17 @@ public class CharacterSettings : MonoBehaviour {
     public float SensX = 30f; 
     public float SensY = 30f;
 
+    /// <summary>
+    /// データ読み込み
+    /// </summary>
+    public async void LoadData() {
+        CDSO = (CharacterDataSO)await Resources.LoadAsync<CharacterDataSO>("CharacterDataSO");
+        BDSO = (BulletDataSO)await Resources.LoadAsync<BulletDataSO>("BulletDataSO");
+        SWDSO = (SubWeaponDataSO)await Resources.LoadAsync<SubWeaponDataSO>("SubWeaponDataSO");
+        UDSO = (UltimateDataSO)await Resources.LoadAsync<UltimateDataSO>("UltimateDataSO");
+        await MeshLoadDataAsync();
+    }
+
     /*
      * 
      * キャラクターのタイプ
@@ -57,8 +68,20 @@ public class CharacterSettings : MonoBehaviour {
         SniperRifle,
     }
 
+    // キャラクターのデータ
+    public CharacterDataSO CDSO;
+    // 弾のデータ
+    public BulletDataSO BDSO;
+
     // キャラクターのタイプ
     public PLAYER_CHARACTER_TYPE CharacterType = PLAYER_CHARACTER_TYPE.AssaultRifle;
+
+    /// <summary>
+    /// キャラクタータイプのスプライトを返す
+    /// </summary>
+    public Sprite GetCharacterCharacterTypeSprite() {
+        return BDSO.bulletDataList.First(_=>_.CharacterType == CharacterType).LoadoutSprite;
+    }
 
     /*
      * 
@@ -68,12 +91,23 @@ public class CharacterSettings : MonoBehaviour {
 
     // サブ武器の列挙型
     public enum PLAYER_SUB_WEAPON {
-        Grenade,
-        ImpactGrenade,
+        Bomb,
+        ImpactBomb,
+        Turret,
     }
 
+    // サブ武器のデータ
+    public SubWeaponDataSO SWDSO;
+
     // サブ武器
-    public PLAYER_SUB_WEAPON SubWeapon = PLAYER_SUB_WEAPON.Grenade;
+    public PLAYER_SUB_WEAPON SubWeapon = PLAYER_SUB_WEAPON.Bomb;
+
+    /// <summary>
+    /// サブ武器のスプライトを返す
+    /// </summary>
+    public Sprite GetCharacterSubWeaponSprite() {
+        return SWDSO.subWeaponDataList.First(_ => _.SubWeapon == SubWeapon).LoadoutSprite;
+    }
 
     /*
      * 
@@ -84,10 +118,21 @@ public class CharacterSettings : MonoBehaviour {
     // アルティメットの列挙型
     public enum PLAYER_ULTIMATE {
         Meteor,
+        HomingMissile,
     }
+
+    // アルティメットのデータ
+    public UltimateDataSO UDSO;
 
     // アルティメット
     public PLAYER_ULTIMATE Ultimate = PLAYER_ULTIMATE.Meteor;
+
+    /// <summary>
+    /// アルティメットのスプライトを返す
+    /// </summary>
+    public Sprite GetCharacterUltimateSprite() {
+        return UDSO.ultimateDataList.First(_ => _.Ultimate == Ultimate).LoadoutSprite;
+    }
 
     /*
      * 
@@ -118,7 +163,7 @@ public class CharacterSettings : MonoBehaviour {
     // 靴
     public Mesh Shoes;
 
-    // 装備メッシュ
+    // 装備メッシュSO
     public CharacterEquipmentSO CESO;
 
     /// <summary>

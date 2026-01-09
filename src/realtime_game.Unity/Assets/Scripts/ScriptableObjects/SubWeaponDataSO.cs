@@ -9,5 +9,13 @@ public class SubWeaponDataSO : ScriptableObject {
 
 [System.Serializable]
 public class SubWeaponData {
-    public PLAYER_SUB_WEAPON subWeapon;
+    public PLAYER_SUB_WEAPON SubWeapon;
+    public Sprite LoadoutSprite;
+    public GameObject ObjectPrefab;
+    public float Life;
+    public float AttackPower;
+    public float SmashPower;
+    public float ShotPower;
+    public float Radius;
+    public float CoolTime;
 }

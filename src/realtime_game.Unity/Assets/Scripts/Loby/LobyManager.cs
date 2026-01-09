@@ -12,6 +12,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TextCore.Text;
 using UnityEngine.UI;
+using static CharacterSettings;
 
 public class LobyManager : MonoBehaviour {
     [SerializeField] private LobyUIManager lobyUIManager;
@@ -74,6 +75,10 @@ public class LobyManager : MonoBehaviour {
         // プレイヤーを生成する
         myCharacter = Instantiate(playerPrefab, playerStandList[0].position + new Vector3(0, 0.1f, 0), playerPrefab.transform.rotation, playerObjectParent);
         lobyPlayerManager = myCharacter.GetComponent<LobyPlayerManager>();
+        // タイプと武器を設定
+        lobyPlayerManager.characterType = CharacterSettings.Instance.CharacterType;
+        lobyPlayerManager.subWeapon = CharacterSettings.Instance.SubWeapon;
+        lobyPlayerManager.ultimate = CharacterSettings.Instance.Ultimate;
 
         // ステータステキストを生成
         myStatusText = myCharacter.GetComponentInChildren<TextMeshProUGUI>();
@@ -429,6 +434,11 @@ public class LobyManager : MonoBehaviour {
         // キャラクター装備メッシュ
         CharacterEquipmentSO CESO = CharacterSettings.Instance.CESO;
 
+        // キャラクタータイプと武器適応
+        createdLobyPlayerManager.characterType = (PLAYER_CHARACTER_TYPE)Enum.ToObject(typeof(PLAYER_CHARACTER_TYPE), user.LoadoutData.CharacterTypeNum);
+        createdLobyPlayerManager.subWeapon = (PLAYER_SUB_WEAPON)Enum.ToObject(typeof(PLAYER_SUB_WEAPON), user.LoadoutData.SubWeaponNum);
+        createdLobyPlayerManager.ultimate = (PLAYER_ULTIMATE)Enum.ToObject(typeof(PLAYER_ULTIMATE), user.LoadoutData.UltimateNum);
+
         // メッシュ適応
         createdLobyPlayerManager.Hat.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Hat").equipment.Find(_ => _.name == user.LoadoutData.HatName).mesh;
         createdLobyPlayerManager.Accessories.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Accessories").equipment.Find(_ => _.name == user.LoadoutData.AccessoriesName).mesh;
@@ -565,6 +575,14 @@ public class LobyManager : MonoBehaviour {
         // キャラクター装備メッシュ
         CharacterEquipmentSO CESO = CharacterSettings.Instance.CESO;
 
+        // タイプと武器変更
+        LobyPlayerManager createdLobyPlayerManager = TeamPlayerList[connectionId].playerObject.GetComponent<LobyPlayerManager>();
+
+        // キャラクタータイプと武器適応
+        createdLobyPlayerManager.characterType = (PLAYER_CHARACTER_TYPE)Enum.ToObject(typeof(PLAYER_CHARACTER_TYPE), loadoutData.CharacterTypeNum);
+        createdLobyPlayerManager.subWeapon = (PLAYER_SUB_WEAPON)Enum.ToObject(typeof(PLAYER_SUB_WEAPON), loadoutData.SubWeaponNum);
+        createdLobyPlayerManager.ultimate = (PLAYER_ULTIMATE)Enum.ToObject(typeof(PLAYER_ULTIMATE), loadoutData.UltimateNum);
+
         // メッシュ適応
         LobyPlayerManager lPM = TeamPlayerList[connectionId].playerObject.GetComponent<LobyPlayerManager>();
         lPM.Hat.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Hat").equipment.Find(_ => _.name == loadoutData.HatName).mesh;
@@ -573,5 +591,7 @@ public class LobyManager : MonoBehaviour {
         lPM.Hairstyle.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Hairstyle").equipment.Find(_ => _.name == loadoutData.HairstyleName).mesh;
         lPM.Outerwear.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Outerwear").equipment.Find(_ => _.name == loadoutData.OuterwearName).mesh;
         lPM.Shoes.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Shoes").equipment.Find(_ => _.name == loadoutData.ShoesName).mesh;
+
+        createdLobyPlayerManager.ChangeCharacterModel();
     }
 }

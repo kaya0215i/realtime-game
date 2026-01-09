@@ -2,24 +2,7 @@ using System.Linq;
 using UnityEngine;
 using static CharacterSettings;
 
-public class BulletController : MonoBehaviour {
-    private NetworkObject networkObject;
-    private Rigidbody myRb;
-
-    // VFX
-    [SerializeField] private GameObject fieldHitVFX;
-    // VFXの親Transform
-    private Transform VFXParent;
-
-    // 弾のデータ
-    [SerializeField] private BulletDataSO bulletDataSO;
-
-    public float MaxLife { private set; get; }
-    public float Life { private set; get; }
-    public float AttackPower { private set; get; }
-    public float SmashPower { private set; get; }
-    public float ShotPower { private set; get; }
-
+public class BulletController : WeaponManager {
     // ShotGun用定数
     private const float MAX_RANDOM_VALUE = 3.5f;
     private const float MIN_RANDOM_VALUE = -3.5f;
@@ -39,40 +22,23 @@ public class BulletController : MonoBehaviour {
         PLAYER_CHARACTER_TYPE createrCharacterType = playerManager.characterType;
 
         // キャラクターのタイプをもとに設定
-        BulletData bulletData = bulletDataSO.bulletDataList.First(_=>_.characterType == createrCharacterType);
+        BulletData bulletData = CharacterSettings.Instance.BDSO.bulletDataList.First(_=>_.CharacterType == createrCharacterType);
         MaxLife = bulletData.Life;
         Life = bulletData.Life;
         AttackPower = bulletData.AttackPower;
         SmashPower = bulletData.SmashPower;
         ShotPower = bulletData.ShotPower;
 
-        // 自分の弾だったら
-        if (networkObject.isCreater) {
-            if (createrCharacterType == PLAYER_CHARACTER_TYPE.ShotGun) {
-                Vector3 rndSolt = new Vector3(UnityEngine.Random.Range(MIN_RANDOM_VALUE, MAX_RANDOM_VALUE),
-                    UnityEngine.Random.Range(MIN_RANDOM_VALUE, MAX_RANDOM_VALUE),
-                    UnityEngine.Random.Range(MIN_RANDOM_VALUE, MAX_RANDOM_VALUE));
+        // 弾をを飛ばす処理
+        if (createrCharacterType == PLAYER_CHARACTER_TYPE.ShotGun) {
+            Vector3 rndSolt = new Vector3(Random.Range(MIN_RANDOM_VALUE, MAX_RANDOM_VALUE),
+                Random.Range(MIN_RANDOM_VALUE, MAX_RANDOM_VALUE),
+                Random.Range(MIN_RANDOM_VALUE, MAX_RANDOM_VALUE));
 
-                myRb.AddForce(this.transform.forward * ShotPower + rndSolt, ForceMode.Impulse);
-            }
-            else {
-                myRb.AddForce(this.transform.forward * ShotPower, ForceMode.Impulse);
-            }
+            myRb.AddForce(this.transform.forward * ShotPower + rndSolt, ForceMode.Impulse);
         }
-        // 他のプレイヤーの撃った弾だったら
         else {
-            PlayerController playerController = playerManager.GetComponent<PlayerController>();
-
-            if (createrCharacterType == PLAYER_CHARACTER_TYPE.ShotGun) {
-                Vector3 rndSolt = new Vector3(UnityEngine.Random.Range(MIN_RANDOM_VALUE, MAX_RANDOM_VALUE),
-                    UnityEngine.Random.Range(MIN_RANDOM_VALUE, MAX_RANDOM_VALUE),
-                    UnityEngine.Random.Range(MIN_RANDOM_VALUE, MAX_RANDOM_VALUE));
-
-                myRb.AddForce(this.transform.forward * ShotPower + rndSolt, ForceMode.Impulse);
-            }
-            else {
-                myRb.AddForce(this.transform.forward * ShotPower, ForceMode.Impulse);
-            }
+            myRb.AddForce(this.transform.forward * ShotPower, ForceMode.Impulse);
         }
     }
 
@@ -90,14 +56,14 @@ public class BulletController : MonoBehaviour {
         }
     }
 
-    private void OnCollisionEnter(Collision collision) {
+    private void OnTriggerEnter(Collider other) {
         // 作成者でなければreturn
         if (!networkObject.IsCreater()) {
             return;
         }
 
         // プレイヤー以外に当たったら
-        if (!collision.gameObject.CompareTag("Player")) {
+        if (!other.gameObject.CompareTag("Player")) {
             // VFX生成
             Instantiate(fieldHitVFX, this.transform.position, Quaternion.identity, VFXParent);
 

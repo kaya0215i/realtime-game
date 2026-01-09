@@ -1,10 +1,8 @@
 using DG.Tweening;
 using System;
-using Unity.Mathematics;
 using UnityEngine;
 using Cysharp.Threading.Tasks;
 using System.Linq;
-using realtime_game.Shared;
 
 public class NetworkObject : MonoBehaviour {
     public GameManager GameManager { private set; get; }
@@ -99,12 +97,15 @@ public class NetworkObject : MonoBehaviour {
             return;
         }
 
-        if(updateType == UpdateObjectTypes.None) {
+        if (updateType == UpdateObjectTypes.None) {
             return;
         }
-
-        if(updateType == UpdateObjectTypes.Interactor &&
-           !isInteracting) {
+        else if (updateType == UpdateObjectTypes.Creater &&
+                 !IsCreater()) {
+            return;
+        }
+        else if (updateType == UpdateObjectTypes.Interactor &&
+                 !isInteracting) {
             return;
         }
 
@@ -118,6 +119,7 @@ public class NetworkObject : MonoBehaviour {
 
     private async void OnDestroy() {
         if (RoomModel.Instance == null ||
+            GameManager == null ||
            !GameManager.isJoined ||
            myObject == null) {
             return;

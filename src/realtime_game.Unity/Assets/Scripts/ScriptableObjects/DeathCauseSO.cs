@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using static GameManager;
 
 [CreateAssetMenu(menuName = "MyScripts/DeathCauseSO")]
 public class DeathCauseSO : ScriptableObject {
@@ -8,7 +9,6 @@ public class DeathCauseSO : ScriptableObject {
 
 [System.Serializable]
 public class DeathCauseData {
-    public int id;
-    public string name;
+    public Death_Cause death_Cause;
     public Sprite image;
 }

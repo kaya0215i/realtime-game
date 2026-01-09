@@ -68,6 +68,10 @@ public class GameUIManager : MonoBehaviour {
 
     // スマホ用スクリーンパッド
     [SerializeField] private GameObject screenPadUI;
+    // スマホ用サブ武器ボタンの画像
+    [SerializeField] private Image subWeaponBtnImage;
+    // スマホ用アルティメットボタンの画像
+    [SerializeField] private Image ultimateBtnImage;
 
     private void Update() {
         // ゲームスタート中
@@ -138,7 +142,7 @@ public class GameUIManager : MonoBehaviour {
     /// プレイヤー待ちテキスト更新
     /// </summary>
     private void UpdateWaitPlayerJoinText() {
-        string text = "他のプレイヤーを待っています";
+        string text = "他のプレイヤーを待っています.";
 
         updateWaitPlayerJoinTextTimer += Time.deltaTime;
         if (updateWaitPlayerJoinTextTimer >= 1f) {
@@ -261,7 +265,7 @@ public class GameUIManager : MonoBehaviour {
 
         // 死因画像設定
         Image image = createdUI.GetComponentsInChildren<Image>(true).First(text => text.gameObject.name == "DeathCauseImage");
-        image.sprite = deathCauseSO.deathCauseDataList.FirstOrDefault(_ => _.name == deathCause.ToString()).image;
+        image.sprite = deathCauseSO.deathCauseDataList.FirstOrDefault(_ => _.death_Cause == deathCause).image;
 
         Destroy(createdUI, 10);
     }
@@ -388,6 +392,35 @@ public class GameUIManager : MonoBehaviour {
             texts.First(_ => _.gameObject.name == "PlayerName").text = gameManager.CharacterList[item.ConnectionId].joinedData.UserData.Display_Name;
             texts.First(_ => _.gameObject.name == "ScoreText").text = item.Score.ToString();
             index++;
+        }
+    }
+
+    /// <summary>
+    /// サブ武器のクールタイム
+    /// </summary>
+    public void UpdateSubWeaponCoolTime(float value) {
+        if (value >= 1) {
+            subWeaponBtnImage.fillAmount = 1;
+            subWeaponBtnImage.color = new Color(1, 1, 1);
+        }
+        else {
+            subWeaponBtnImage.fillAmount = value;
+            subWeaponBtnImage.color = new Color(0.7f, 0.7f, 0.7f);
+        }
+        
+    }
+
+    /// <summary>
+    /// アルティメットのクールタイム
+    /// </summary>
+    public void UpdateUltimateCoolTime(float value) {
+        if (value > 1) {
+            ultimateBtnImage.fillAmount = 1;
+            ultimateBtnImage.color = new Color(1, 1, 1);
+        }
+        else {
+            ultimateBtnImage.fillAmount = value;
+            ultimateBtnImage.color = new Color(0.7f, 0.7f, 0.7f);
         }
     }
 }

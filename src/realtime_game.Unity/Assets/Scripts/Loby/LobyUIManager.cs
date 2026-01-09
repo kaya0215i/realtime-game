@@ -48,6 +48,7 @@ public class LobyUIManager : MonoBehaviour {
     [SerializeField] private Image SelectiongImage;
     [SerializeField] private GameObject itemSelectPrefab;
     [SerializeField] private Transform itemSelectParent;
+    [SerializeField] private SerializableDictionary<string, Image> weaponSelectImages;
     [SerializeField] private SerializableDictionary<string, Image> skinPartSelectImages;
 
     // チーム招待用
@@ -83,7 +84,10 @@ public class LobyUIManager : MonoBehaviour {
         // 準備状態通知登録
         RoomModel.Instance.OnIsReadyedStatusUser += OnIsReadyedStatusUser;
 
-
+        // 武器選択ボタンの画像設定
+        weaponSelectImages["MainWeapon"].sprite = CharacterSettings.Instance.GetCharacterCharacterTypeSprite();
+        weaponSelectImages["SubWeapon"].sprite = CharacterSettings.Instance.GetCharacterSubWeaponSprite();
+        weaponSelectImages["Ultimate"].sprite = CharacterSettings.Instance.GetCharacterUltimateSprite();
 
         // スキン選択ボタンの画像を設定
         foreach (var item in skinPartSelectImages) {
@@ -524,34 +528,76 @@ public class LobyUIManager : MonoBehaviour {
         itemSelects.SetActive(false);
         selecter.SetActive(true);
 
+        // 弾のデータ
+        BulletDataSO BDSO = CharacterSettings.Instance.BDSO;
+        // サブ武器のデータ
+        SubWeaponDataSO SWDSO = CharacterSettings.Instance.SWDSO;
+        // アルティメットのデータ
+        UltimateDataSO UDSO = CharacterSettings.Instance.UDSO;
         // キャラクター装備メッシュ
         CharacterEquipmentSO CESO = CharacterSettings.Instance.CESO;
 
         switch (select) {
             case "MainWeapon":
-                for (int i = 0; i < 3; i++) {
+                // 選択中のアイテム画像設定
+                SelectiongImage.sprite = CharacterSettings.Instance.GetCharacterCharacterTypeSprite();
+
+                foreach (var item in BDSO.bulletDataList) {
                     GameObject createdUI = Instantiate(itemSelectPrefab, parent: itemSelectParent);
                     // イメージ画像を設定
-                    createdUI.GetComponentInChildren<Image>();
-                    createdUI.GetComponentInChildren<Text>().text = i.ToString();
-                    // ボタンイベントを設定
-                    int num = i;
-                    createdUI.GetComponent<Button>().onClick.AddListener(async() => {
-                        CharacterSettings.Instance.CharacterType = (PLAYER_CHARACTER_TYPE)Enum.ToObject(typeof(PLAYER_CHARACTER_TYPE), num);
-
-                        // 他のプレイヤーに通知
-                        await RoomModel.Instance.ChangeLoadoutLobyAsync(CharacterSettings.Instance.GetLoadoutData());
+                    createdUI.GetComponentsInChildren<Image>().First(_ => _.gameObject.name == "ItemPanel").sprite = item.LoadoutSprite;
+                    createdUI.GetComponentInChildren<Text>().text = item.CharacterType.ToString();
+                    createdUI.GetComponent<Button>().onClick.AddListener(() => {
+                        // 武器変更
+                        CharacterSettings.Instance.CharacterType = item.CharacterType;
+                        // 選択中のアイテム画像設定
+                        SelectiongImage.sprite = CharacterSettings.Instance.GetCharacterCharacterTypeSprite();
+                        // 武器選択ボタンの画像設定
+                        weaponSelectImages.First(_ => _.Key == select).Value.sprite = item.LoadoutSprite;
                     });
                 }
 
                 break;
 
             case "SubWeapon":
+                // 選択中のアイテム画像設定
+                SelectiongImage.sprite = CharacterSettings.Instance.GetCharacterSubWeaponSprite();
+
+                foreach (var item in SWDSO.subWeaponDataList) {
+                    GameObject createdUI = Instantiate(itemSelectPrefab, parent: itemSelectParent);
+                    // イメージ画像を設定
+                    createdUI.GetComponentsInChildren<Image>().First(_ => _.gameObject.name == "ItemPanel").sprite = item.LoadoutSprite;
+                    createdUI.GetComponentInChildren<Text>().text = item.SubWeapon.ToString();
+                    createdUI.GetComponent<Button>().onClick.AddListener(() => {
+                        // 武器変更
+                        CharacterSettings.Instance.SubWeapon = item.SubWeapon;
+                        // 選択中のアイテム画像設定
+                        SelectiongImage.sprite = CharacterSettings.Instance.GetCharacterSubWeaponSprite();
+                        // 武器選択ボタンの画像設定
+                        weaponSelectImages.First(_ => _.Key == select).Value.sprite = item.LoadoutSprite;
+                    });
+                }
 
                 break;
 
             case "Ultimate":
+                // 選択中のアイテム画像設定
+                SelectiongImage.sprite = CharacterSettings.Instance.GetCharacterUltimateSprite();
 
+                foreach (var item in UDSO.ultimateDataList) {
+                    GameObject createdUI = Instantiate(itemSelectPrefab, parent: itemSelectParent);
+                    // イメージ画像を設定
+                    createdUI.GetComponentsInChildren<Image>().First(_ => _.gameObject.name == "ItemPanel").sprite = item.LoadoutSprite;
+                    createdUI.GetComponentInChildren<Text>().text = item.Ultimate.ToString();
+                    createdUI.GetComponent<Button>().onClick.AddListener(() => {
+                        // 武器変更
+                        CharacterSettings.Instance.Ultimate = item.Ultimate;
+                        // 選択中のアイテム画像設定
+                        SelectiongImage.sprite = CharacterSettings.Instance.GetCharacterUltimateSprite();
+                        // 武器選択ボタンの画像設定
+                        weaponSelectImages.First(_ => _.Key == select).Value.sprite = item.LoadoutSprite;
+                    });
+                }
 
                 break;
 
@@ -564,7 +610,7 @@ public class LobyUIManager : MonoBehaviour {
                 // 選択中のアイテム画像設定
                 SelectiongImage.sprite = CharacterSettings.Instance.GetCharacterEquipmentSprite(select);
 
-                foreach (var item in CESO.characterEquipment.First(_=> _.name == select).equipment.ToList()) {
+                foreach (var item in CESO.characterEquipment.First(_ => _.name == select).equipment.ToList()) {
                     GameObject createdUI = Instantiate(itemSelectPrefab, parent: itemSelectParent);
                     // イメージ画像を設定
                     createdUI.GetComponentsInChildren<Image>().First(_ => _.gameObject.name == "ItemPanel").sprite = item.sprite;
@@ -578,9 +624,7 @@ public class LobyUIManager : MonoBehaviour {
                         // 選択中のアイテム画像設定
                         SelectiongImage.sprite = CharacterSettings.Instance.GetCharacterEquipmentSprite(part.ToString());
                         // 部位選択ボタンの画像設定
-                        skinPartSelectImages.First(_=> _.Key == select).Value.sprite = item.sprite;
-                        // 他のプレイヤーに通知
-                        await RoomModel.Instance.ChangeLoadoutLobyAsync(CharacterSettings.Instance.GetLoadoutData());
+                        skinPartSelectImages.First(_ => _.Key == select).Value.sprite = item.sprite;
                     });
                 }
 

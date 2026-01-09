@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using TMPro;
+using Unity.Netcode;
 using UnityEngine;
 using static CharacterSettings;
 using static GameManager;
@@ -13,7 +14,7 @@ public class PlayerManager : MonoBehaviour {
     private GameManager gameManager;
     private PlayerController playerController;
 
-    private Rigidbody myRb;
+    [NonSerialized] public Rigidbody myRb;
 
     [NonSerialized] private GameUIManager gameUIManager;
 
@@ -24,6 +25,14 @@ public class PlayerManager : MonoBehaviour {
 
     // このキャラクターのコネクションID
     [NonSerialized] public Guid thisCharacterConnectionId;
+
+    // 右肩
+    [SerializeField] private Transform rightShoulder;
+    // 右手
+    [SerializeField] private Transform rightHand;
+
+    private Vector3 GodShoulder { get; } = new Vector3(3, 2, 2);
+    private Vector3 GodHand { get; } = new  Vector3(5, 5, 5);
 
     // 帽子
     [SerializeField] public SkinnedMeshRenderer Hat;
@@ -49,7 +58,7 @@ public class PlayerManager : MonoBehaviour {
     // キャラクターのタイプ
     public PLAYER_CHARACTER_TYPE characterType = PLAYER_CHARACTER_TYPE.AssaultRifle;
     // キャラクターのサブ武器
-    public PLAYER_SUB_WEAPON subWeapon = PLAYER_SUB_WEAPON.Grenade;
+    public PLAYER_SUB_WEAPON subWeapon = PLAYER_SUB_WEAPON.Bomb;
     // キャラクターのアルティメット
     public PLAYER_ULTIMATE ultimate = PLAYER_ULTIMATE.Meteor;
 
@@ -69,8 +78,6 @@ public class PlayerManager : MonoBehaviour {
     // ヒットパーセント
     [NonSerialized] public float HitPercent = 0f;
 
-
-
     private void Start() {
         gameManager = GameObject.Find("GameManager").GetComponent<GameManager>();
 
@@ -83,6 +90,8 @@ public class PlayerManager : MonoBehaviour {
         VFXParent = GameObject.Find("VFX").transform;
 
         headUpHitPercentText = GetComponentInChildren<TextMeshProUGUI>();
+
+        ChangeCharacterModel();
     }
 
     private async void Update() {
@@ -120,7 +129,9 @@ public class PlayerManager : MonoBehaviour {
             subWeapon = CharacterSettings.Instance.SubWeapon;
             ultimate = CharacterSettings.Instance.Ultimate;
 
-            playerController.SetPlayerCharacterType();
+            playerController.SetCharacterSettingsFromLoadout();
+
+            ChangeCharacterModel();
 
             await RoomModel.Instance.ChangeLoadoutGameAsync(CharacterSettings.Instance.GetLoadoutData());
         }
@@ -138,13 +149,35 @@ public class PlayerManager : MonoBehaviour {
     }
 
     /// <summary>
+    /// キャラクタータイプに合わせてモデルのTransform変更
+    /// </summary>
+    public void ChangeCharacterModel() {
+        switch (characterType) {
+            case PLAYER_CHARACTER_TYPE.AssaultRifle:
+                rightShoulder.localScale = Vector3.one;
+                rightHand.localScale = Vector3.one;
+                break;
+
+            case PLAYER_CHARACTER_TYPE.ShotGun:
+                rightShoulder.localScale = Vector3.one;
+                rightHand.localScale = GodHand;
+                break;
+
+            case PLAYER_CHARACTER_TYPE.SniperRifle:
+                rightShoulder.localScale = GodShoulder;
+                rightHand.localScale = Vector3.one;
+                break;
+        }
+    }
+
+    /// <summary>
     /// 自分に当てたプレイヤーのコネクションIDを解除
     /// </summary>
     private async UniTask ReleseLastHitConnectionId() {
         isStartReleseTimer = true;
 
         // 10秒待つ
-        await UniTask.Delay(TimeSpan.FromSeconds(10), cancellationToken: releseCTS.Token);
+        await UniTask.Delay(TimeSpan.FromSeconds(25), cancellationToken: releseCTS.Token);
 
         lastHitPlayerConnectionId = Guid.Empty;
         deathCause = Death_Cause.None;
@@ -163,56 +196,6 @@ public class PlayerManager : MonoBehaviour {
         }
 
         return true;
-    }
-
-    private async void OnCollisionEnter(Collision collision) {
-        if (!IsOwner()) {
-            return;
-        }
-
-        // 弾に当たったら
-        if (collision.gameObject.CompareTag("Bullet")) {
-            NetworkObject netObj = collision.gameObject.GetComponent<NetworkObject>();
-            // 自分の撃った弾だったら何もしない
-            if (netObj.createrConnectionId == thisCharacterConnectionId) {
-                return;
-            }
-
-            // 追加の吹っ飛び
-            BulletController bulletController = collision.gameObject.GetComponent<BulletController>();
-            // 弾のライフが多いほど吹っ飛ぶように
-            float addPowerFromLife = bulletController.Life / bulletController.MaxLife;
-
-            // ヒットパーセントが高いほど吹っ飛ぶように
-            float addPowerFromHitPercent = 1 + (HitPercent / 50);
-
-            // 吹っ飛ばし
-            myRb.linearVelocity = Vector3.zero;
-            myRb.AddForce((-this.transform.forward + this.transform.up) * bulletController.SmashPower * addPowerFromLife * addPowerFromHitPercent, ForceMode.Impulse);
-
-            // VFXの生成
-            Instantiate(VFXList.First(_ => _.gameObject.name == "Hit_VFX"), collision.transform.position, Quaternion.identity, VFXParent);
-
-            // ゲームスタートしてたら
-            if (gameManager.IsGameStartShared) {
-                // 自分に当てたプレイヤーのコネクションIDを保持
-                lastHitPlayerConnectionId = netObj.createrConnectionId;
-
-                // ヒットパーセントを増やす
-                HitPercent += bulletController.AttackPower * (bulletController.Life / bulletController.MaxLife);
-
-                // 死因に設定
-                deathCause = Death_Cause.Shot;
-
-                // サーバーに送信
-                await RoomModel.Instance.HitPercentAsync(HitPercent);
-            }
-
-            // 弾を削除
-            if (bulletController != null) {
-                bulletController.DestroyThisObject();
-            }
-        }
     }
 
     private void OnTriggerEnter(Collider other) {
@@ -234,7 +217,125 @@ public class PlayerManager : MonoBehaviour {
             }
             else {
                 this.transform.position = Vector3.zero;
+                myRb.linearVelocity = Vector3.zero;
             }
         }
+
+        // 弾に当たったら
+        if (other.gameObject.CompareTag("Bullet")) {
+            NetworkObject netObj = other.gameObject.GetComponent<NetworkObject>();
+            // 自分の撃った弾だったら何もしない
+            if (netObj.createrConnectionId == thisCharacterConnectionId) {
+                return;
+            }
+
+            // 追加の吹っ飛び
+            BulletController bulletController = other.gameObject.GetComponent<BulletController>();
+            // 弾のライフが多いほど吹っ飛ぶように
+            float addPowerFromLife = bulletController.Life / bulletController.MaxLife;
+
+            // ヒットパーセントが高いほど吹っ飛ぶように
+            float addPowerFromHitPercent = 1 + (HitPercent / 50);
+
+            // 吹っ飛ばし
+            myRb.AddForce((-this.transform.forward + this.transform.up) * bulletController.SmashPower * addPowerFromLife * addPowerFromHitPercent, ForceMode.Impulse);
+
+            // VFXの生成
+            Instantiate(VFXList.First(_ => _.gameObject.name == "Hit_VFX"), other.transform.position, Quaternion.identity, VFXParent);
+
+            // ヒットパーセントを増やす
+            float attackPower = bulletController.AttackPower * (bulletController.Life / bulletController.MaxLife);
+            AddHitPercent(attackPower, Death_Cause.Shot, netObj.createrConnectionId);
+
+            // 弾を削除
+            if (bulletController != null) {
+                bulletController.DestroyThisObject();
+            }
+        }
+        // タレットの弾に当たったら
+        else if (other.gameObject.CompareTag("TurretBullet")) {
+            NetworkObject netObj = other.gameObject.GetComponent<NetworkObject>();
+            // 自分の撃った弾だったら何もしない
+            if (netObj.createrConnectionId == thisCharacterConnectionId) {
+                return;
+            }
+
+            // 追加の吹っ飛び
+            TurretBulletController turretBulletController = other.gameObject.GetComponent<TurretBulletController>();
+            // 弾のライフが多いほど吹っ飛ぶように
+            float addPowerFromLife = turretBulletController.Life / turretBulletController.MaxLife;
+
+            // ヒットパーセントが高いほど吹っ飛ぶように
+            float addPowerFromHitPercent = 1 + (HitPercent / 50);
+
+            // 吹っ飛ばし
+            myRb.AddForce((-this.transform.forward + this.transform.up) * turretBulletController.SmashPower * addPowerFromLife * addPowerFromHitPercent, ForceMode.Impulse);
+
+            // VFXの生成
+            Instantiate(VFXList.First(_ => _.gameObject.name == "Hit_VFX"), other.transform.position, Quaternion.identity, VFXParent);
+
+            // ヒットパーセントを増やす
+            float attackPower = turretBulletController.AttackPower * (turretBulletController.Life / turretBulletController.MaxLife);
+            AddHitPercent(attackPower, Death_Cause.Turret, netObj.createrConnectionId);
+
+            // 弾を削除
+            if (turretBulletController != null) {
+                turretBulletController.DestroyThisObject();
+            }
+        }
+        // ホーミングミサイルに当たったら
+        else if (other.gameObject.CompareTag("HomingMissile")) {
+            NetworkObject netObj = other.gameObject.GetComponent<NetworkObject>();
+            // 自分の撃った弾だったら何もしない
+            if (netObj.createrConnectionId == thisCharacterConnectionId) {
+                return;
+            }
+
+            // 追加の吹っ飛び
+            HomingMissileController hmCon = other.gameObject.GetComponent<HomingMissileController>();
+
+            // ミサイルのライフが多いほど吹っ飛ぶように
+            float addPowerFromLife = hmCon.Life / hmCon.MaxLife;
+
+            // ヒットパーセントが高いほど吹っ飛ぶように
+            float addPowerFromHitPercent = 1 + (HitPercent / 50);
+
+            // 吹っ飛ばし
+            myRb.AddForce((-this.transform.forward + this.transform.up) * hmCon.SmashPower * addPowerFromLife * addPowerFromHitPercent, ForceMode.Impulse);
+
+            // VFXの生成
+            Instantiate(VFXList.First(_ => _.gameObject.name == "Hit_VFX"), other.transform.position, Quaternion.identity, VFXParent);
+
+            // ヒットパーセントを増やす
+            float attackPower = hmCon.AttackPower * (hmCon.Life / hmCon.MaxLife);
+            AddHitPercent(attackPower, Death_Cause.HomingMissile, netObj.createrConnectionId);
+
+            // 弾を削除
+            if (hmCon != null) {
+                hmCon.DestroyThisObject();
+            }
+        }
+    }
+
+    /// <summary>
+    /// ヒットパーセントを増やす
+    /// </summary>
+    public async void AddHitPercent(float value, Death_Cause cause, Guid connectionId) {
+        // ゲームスタートしてたら
+        if (!gameManager.IsGameStartShared) {
+            return;
+        }
+
+        // 自分に当てたプレイヤーのコネクションIDを保持
+        lastHitPlayerConnectionId = connectionId;
+
+        // ヒットパーセントを増やす
+        HitPercent += value;
+
+        // 死因に設定
+        deathCause = cause;
+
+        // サーバーに送信
+        await RoomModel.Instance.HitPercentAsync(HitPercent);
     }
 }

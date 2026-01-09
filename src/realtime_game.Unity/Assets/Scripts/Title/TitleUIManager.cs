@@ -85,6 +85,31 @@ public class TitleUIManager : MonoBehaviour {
     }
 
     /// <summary>
+    /// [リリース時に削除]
+    /// デバッグ用ログインボタン
+    /// </summary>
+    public async void OnClickDebugLoginBtn(string loginIdAndPassword) {
+        string loginId = loginIdAndPassword.Substring(loginIdAndPassword.IndexOf(":id:"), loginIdAndPassword.IndexOf(":pass:")).Substring(4);
+        string loginPassword = loginIdAndPassword.Substring(loginIdAndPassword.IndexOf(":pass:")).Substring(6);
+
+        bool result = await UserModel.Instance.LoginUserAsync(loginId, loginPassword);
+
+        if (result) {
+            Debug.Log("ログイン成功");
+            // ユーザー情報保存
+            saveManager.SaveData(loginId, UserModel.Instance.HashPassword(loginPassword), false);
+
+            // ロビーシーンに移動
+            SceneManager.LoadScene("LobyScene");
+            return;
+        }
+        else {
+            Debug.Log("ログイン失敗");
+            return;
+        }
+    }
+
+    /// <summary>
     /// ログインボタン
     /// </summary>
     public async void OnClickLogin() {

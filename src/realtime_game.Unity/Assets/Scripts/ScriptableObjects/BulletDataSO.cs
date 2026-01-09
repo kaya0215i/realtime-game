@@ -9,7 +9,9 @@ public class BulletDataSO : ScriptableObject {
 
 [System.Serializable]
 public class BulletData {
-    public PLAYER_CHARACTER_TYPE characterType;
+    public PLAYER_CHARACTER_TYPE CharacterType;
+    public Sprite LoadoutSprite;
+    public GameObject ObjectPrefab;
     public float Life;
     public float AttackPower;
     public float SmashPower;

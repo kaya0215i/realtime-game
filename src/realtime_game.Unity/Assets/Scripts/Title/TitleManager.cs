@@ -8,12 +8,12 @@ public class TitleManager : MonoBehaviour {
     [SerializeField] private TitleUIManager titleUIManager;
     private SaveManager saveManager;
 
-    private async void Start() {
+    private void Start() {
         saveManager = this.GetComponent<SaveManager>();
         ConnectServer();
 
-        // メッシュデータを読み込む
-        await CharacterSettings.Instance.MeshLoadDataAsync();
+        // データを読み込む
+        CharacterSettings.Instance.LoadData();
     }
 
     /// <summary>

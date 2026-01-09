@@ -11,6 +11,7 @@ using static CharacterSettings;
 public class PlayerController : MonoBehaviour {
     private GameManager gameManager;
     private PlayerManager playerManager;
+
     private Rigidbody myRb;
 
     private PlayerAnimation playerAnimation;
@@ -21,9 +22,6 @@ public class PlayerController : MonoBehaviour {
     private NetworkObject myInteractedObj;
 
     [NonSerialized] private GameUIManager uiManager;
-
-    // キャラクターデータ
-    [SerializeField] private CharacterDataSO characterDataSO;
 
     // プレイヤーのTransform
     [SerializeField] public Transform _head;
@@ -46,6 +44,8 @@ public class PlayerController : MonoBehaviour {
 
     // 生成した弾を配置する親オブジェクト
     private Transform bulletParent;
+    // 生成したオブジェクトを配置する親オブジェクト
+    private Transform objectParent;
 
     // プレイヤーカメラモードの列挙型
     private enum PLAYER_CAMERA_MODE {
@@ -62,8 +62,6 @@ public class PlayerController : MonoBehaviour {
     // 視点の移動量
     private float _yRotation, _xRotation;
 
-    // 弾のプレハブリスト
-    [SerializeField] private List<GameObject> bulletList;
     // 最大の弾の弾数
     private int maxBulletAmount;
     // 現在の弾の弾数
@@ -89,6 +87,16 @@ public class PlayerController : MonoBehaviour {
     // タッチ操作用
     private bool touchLookActive = true;
 
+    // サブ武器のクールタイム
+    private float subWeaponCoolTime;
+    // サブ武器のクールタイムカウント用
+    private float subWeaponCoolTimer = 0;
+
+    // アルティメット最大チャージ量
+    private float ultimateMaxChargeAmount;
+    // アルティメットチャージ量
+    private float ultimateChargeAmount = 0;
+
     private void Start() {
         gameManager = GameObject.Find("GameManager").GetComponent<GameManager>();
         playerManager = this.GetComponent<PlayerManager>();
@@ -96,12 +104,13 @@ public class PlayerController : MonoBehaviour {
         playerAnimation = this.GetComponent<PlayerAnimation>();
         cinemachineFollow = cinemachineCamera.GetComponent<CinemachineFollow>();
         bulletParent = GameObject.Find("Bullets").GetComponent<Transform>();
+        objectParent = GameObject.Find("Objects").GetComponent<Transform>();
         uiManager = GameObject.Find("UICanvas").GetComponent<GameUIManager>();
 
         SetPlayerCameraMode();
 
-        // キャラクターのタイプをもとに設定
-        SetPlayerCharacterType();
+        // キャラクターのロードアウトをもとに設定
+        SetCharacterSettingsFromLoadout();
 
         // インプットアクションを有効に
         playerInputActions = new PlayerInputActions();
@@ -172,10 +181,11 @@ public class PlayerController : MonoBehaviour {
     }
 
     /// <summary>
-    /// キャラクターのタイプをもとに設定
+    /// キャラクターのロードアウトをもとに設定
     /// </summary>
-    public void SetPlayerCharacterType() {
-        CharacterData characterData = characterDataSO.characterDataList.First(_=>_.characterType == playerManager.characterType);
+    public void SetCharacterSettingsFromLoadout() {
+        // キャラクタータイプ
+        CharacterData characterData = CharacterSettings.Instance.CDSO.characterDataList.First(_=>_.characterType == playerManager.characterType);
         maxBulletAmount = characterData.maxBulletAmount;
         shotCoolTime = characterData.shotCoolTime;
         reloadTime = characterData.reloadTime;
@@ -185,6 +195,16 @@ public class PlayerController : MonoBehaviour {
 
         // 弾数をUIに反映
         uiManager.UpdateBulletAmountText(bulletAmount, maxBulletAmount);
+
+        // サブ武器
+        SubWeaponData subWeaponData = CharacterSettings.Instance.SWDSO.subWeaponDataList.First(_=>_.SubWeapon == playerManager.subWeapon);
+        subWeaponCoolTime = subWeaponData.CoolTime;
+        subWeaponCoolTimer = 0;
+
+        // アルティメット
+        UltimateData ultimateData = CharacterSettings.Instance.UDSO.ultimateDataList.First(_ => _.Ultimate == playerManager.ultimate);
+        ultimateMaxChargeAmount = ultimateData.ChargeAmount;
+        ultimateChargeAmount = 0;
     }
 
     /// <summary>
@@ -294,9 +314,6 @@ public class PlayerController : MonoBehaviour {
             return;
         }
 
-        // キャラクターのタイプごとに射撃方法を変更
-        string bulletName = playerManager.characterType.ToString() + "Bullet";
-
         switch (playerManager.characterType) {
             case PLAYER_CHARACTER_TYPE.AssaultRifle:
                 if (playerInputActions.Player.Shot.IsPressed()) {
@@ -309,8 +326,10 @@ public class PlayerController : MonoBehaviour {
                     bulletAmount -= 1;
                     shotCoolTimer = 0;
 
-                    GameObject createdBullet = Instantiate(bulletList.First(_ => _.name == bulletName), Camera.main.transform.position + Camera.main.transform.forward, _head.transform.rotation, bulletParent);
-                    BulletController createdBulletController = createdBullet.GetComponent<BulletController>();
+                    GameObject createdBullet = Instantiate(CharacterSettings.Instance.BDSO.bulletDataList.First(_=>_.CharacterType == playerManager.characterType).ObjectPrefab, 
+                        Camera.main.transform.position + Camera.main.transform.forward, 
+                        _head.transform.rotation, 
+                        bulletParent);
                     // 弾投げアニメーション
                     playerAnimation.ShotAnimation();
                 }
@@ -329,8 +348,10 @@ public class PlayerController : MonoBehaviour {
                     shotCoolTimer = 0;
 
                     for (int i = 0; i < ShotGunShotBulletAmount; i++) {
-                        GameObject createdBullet = Instantiate(bulletList.First(_ => _.name == bulletName), Camera.main.transform.position + Camera.main.transform.forward, _head.transform.rotation, bulletParent);
-                        BulletController createdBulletController = createdBullet.GetComponent<BulletController>();
+                        GameObject createdBullet = Instantiate(CharacterSettings.Instance.BDSO.bulletDataList.First(_ => _.CharacterType == playerManager.characterType).ObjectPrefab, 
+                            Camera.main.transform.position + Camera.main.transform.forward, 
+                            _head.transform.rotation, 
+                            bulletParent);
                     }
                     // 弾投げアニメーション
                     playerAnimation.ShotAnimation();
@@ -349,8 +370,10 @@ public class PlayerController : MonoBehaviour {
                     bulletAmount -= 1;
                     shotCoolTimer = 0;
 
-                    GameObject createdBullet = Instantiate(bulletList.First(_ => _.name == bulletName), Camera.main.transform.position + Camera.main.transform.forward, _head.transform.rotation, bulletParent);
-                    BulletController createdBulletController = createdBullet.GetComponent<BulletController>();
+                    GameObject createdBullet = Instantiate(CharacterSettings.Instance.BDSO.bulletDataList.First(_ => _.CharacterType == playerManager.characterType).ObjectPrefab, 
+                        Camera.main.transform.position + Camera.main.transform.forward, 
+                        _head.transform.rotation, 
+                        bulletParent);
                     // 弾投げアニメーション
                     playerAnimation.ShotAnimation();
                 }
@@ -366,6 +389,11 @@ public class PlayerController : MonoBehaviour {
     /// 弾のリロード
     /// </summary>
     private async void ReloadBullet() {
+        // 弾が減ってなかったら何もしない
+        if (bulletAmount == maxBulletAmount) {
+            return;
+        }
+
         // リロード中だったらなにもしない
         if (isReloading) {
             reloadTimer += Time.deltaTime;
@@ -452,14 +480,102 @@ public class PlayerController : MonoBehaviour {
     /// サブ武器使用
     /// </summary>
     private void UseSubWeapon() {
+        if (!gameManager.IsGameStartShared) {
+            return;
+        }
 
+        // クールタイムを加算
+        if (subWeaponCoolTimer < subWeaponCoolTime) {
+            subWeaponCoolTimer += Time.deltaTime;
+
+            // ボタン画像に反映
+            uiManager.UpdateSubWeaponCoolTime(1 * subWeaponCoolTimer / subWeaponCoolTime);
+            return;
+        }
+
+        if (playerInputActions.Player.SubWeapon.triggered) {
+            // リロード中だったらタスクをキャンセル
+            if (isReloading) {
+                reloadCTS.Cancel();
+                isReloading = false;
+            }
+
+            // オブジェクト生成
+            GameObject createdSubWeapon = Instantiate(CharacterSettings.Instance.SWDSO.subWeaponDataList.First(_ => _.SubWeapon == playerManager.subWeapon).ObjectPrefab,
+                Camera.main.transform.position + Camera.main.transform.forward,
+                _head.transform.rotation,
+                objectParent);
+
+            // 弾投げアニメーション
+            playerAnimation.ShotAnimation();
+
+            // クールタイムリセット
+            subWeaponCoolTimer = 0;
+        }
     }
 
     /// <summary>
     /// アルティメット使用
     /// </summary>
     private void UseAltimate() {
+        if (!gameManager.IsGameStartShared) {
+            return;
+        }
 
+        // チャージ量加算
+        if (ultimateChargeAmount < ultimateMaxChargeAmount) {
+            ultimateChargeAmount += Time.deltaTime;
+
+            // ボタン画像に反映
+            uiManager.UpdateUltimateCoolTime(1 * ultimateChargeAmount / ultimateMaxChargeAmount);
+            return;
+        }
+
+        if (playerInputActions.Player.Ultimate.triggered) {
+            // リロード中だったらタスクをキャンセル
+            if (isReloading) {
+                reloadCTS.Cancel();
+                isReloading = false;
+            }
+
+
+            switch (playerManager.ultimate) {
+                case PLAYER_ULTIMATE.Meteor:
+                    // オブジェクト生成
+                    GameObject createdMeteor = Instantiate(CharacterSettings.Instance.UDSO.ultimateDataList.First(_ => _.Ultimate == playerManager.ultimate).ObjectPrefab,
+                        this.transform.position + new Vector3(0, 100, 0),
+                        Quaternion.identity,
+                        objectParent);
+
+                    break;
+
+                case PLAYER_ULTIMATE.HomingMissile:
+                    Vector3 position = this.transform.position + new Vector3(0, 1, 0);
+
+                    for (int i = 0; i < 5; i++) {
+                        float angleRange = Mathf.Deg2Rad * 100f;
+                        float theta = angleRange / (5 - 1) * i + Mathf.Deg2Rad * (90f - 100f / 2f);
+                        Vector3 dir = position + new Vector3(Mathf.Cos(theta), Mathf.Sin(theta)) - position;
+                        // オブジェクト生成
+                        GameObject createdHomingMissile = Instantiate(CharacterSettings.Instance.UDSO.ultimateDataList.First(_ => _.Ultimate == playerManager.ultimate).ObjectPrefab,
+                            position + dir * 1.2f,
+                            Quaternion.FromToRotation(transform.forward, dir),
+                            objectParent);
+                    }
+
+                    break;
+            }
+
+            // チャージ量リセット
+            ultimateChargeAmount = 0;
+        }
+    }
+
+    /// <summary>
+    /// キルしたときのアルティメットチャージ
+    /// </summary>
+    public void AddUltimateChargeAmount() {
+        ultimateChargeAmount += ultimateMaxChargeAmount / 5;
     }
 
     /// <summary>
