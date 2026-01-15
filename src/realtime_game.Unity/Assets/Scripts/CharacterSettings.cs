@@ -41,13 +41,24 @@ public class CharacterSettings : MonoBehaviour {
 
 
     // カメラ感度
-    public float SensX = 30f; 
-    public float SensY = 30f;
+    public float SensX { get; private set; } = 30f; 
+    public float SensY { get; private set; } = 30f;
+
+    public float RawSens { get; private set; } = 0.3f;
+
+    /// <summary>
+    /// 感度変更
+    /// </summary>
+    public void ChangeSens(float value) {
+        RawSens = value;
+        SensX = value * 100;
+        SensY = value * 100;
+    }
 
     /// <summary>
     /// データ読み込み
     /// </summary>
-    public async void LoadData() {
+    public async UniTask LoadData() {
         CDSO = (CharacterDataSO)await Resources.LoadAsync<CharacterDataSO>("CharacterDataSO");
         BDSO = (BulletDataSO)await Resources.LoadAsync<BulletDataSO>("BulletDataSO");
         SWDSO = (SubWeaponDataSO)await Resources.LoadAsync<SubWeaponDataSO>("SubWeaponDataSO");

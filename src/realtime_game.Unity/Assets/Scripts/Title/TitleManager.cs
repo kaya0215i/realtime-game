@@ -1,27 +1,44 @@
+using Cysharp.Threading.Tasks;
 using DG.Tweening.Core.Easing;
 using realtime_game.Shared.Models.Entities;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 
 public class TitleManager : MonoBehaviour {
     [SerializeField] private TitleUIManager titleUIManager;
     private SaveManager saveManager;
 
-    private void Start() {
+    private async void Start() {
         saveManager = this.GetComponent<SaveManager>();
-        ConnectServer();
+
+        titleUIManager.IsLoading(true);
 
         // データを読み込む
-        CharacterSettings.Instance.LoadData();
+        await LoadDatas();
+
+        // MagicOnionに接続
+        await ConnectServer();
+
+        titleUIManager.IsLoading(false);
+
+        // 音量調整
+        AudioManager.Instance.SetAllAudioSouceVolume();
+    }
+
+    /// <summary>
+    /// データを読み込む
+    /// </summary>
+    private async UniTask LoadDatas() {
+        await AudioManager.Instance.LoadData();
+        await CharacterSettings.Instance.LoadData();
     }
 
     /// <summary>
     /// MagicOnionに接続
     /// </summary>
-    private async void ConnectServer() {
-        titleUIManager.IsLoading(true);
-
+    private async UniTask ConnectServer() {
         // 接続
         await UserModel.Instance.CreateUserModel();
         await RoomModel.Instance.ConnectAsync();
@@ -44,7 +61,5 @@ public class TitleManager : MonoBehaviour {
                 }
             }
         }
-
-        titleUIManager.IsLoading(false);
     }
 }

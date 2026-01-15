@@ -34,6 +34,9 @@ public class PlayerManager : MonoBehaviour {
     private Vector3 GodShoulder { get; } = new Vector3(3, 2, 2);
     private Vector3 GodHand { get; } = new  Vector3(5, 5, 5);
 
+    // 体
+    [SerializeField] public SkinnedMeshRenderer Body;
+
     // 帽子
     [SerializeField] public SkinnedMeshRenderer Hat;
     // アクセサリー
@@ -149,6 +152,21 @@ public class PlayerManager : MonoBehaviour {
     }
 
     /// <summary>
+    /// アウトラインを消す
+    /// </summary>
+    public void DeleteOutLine() {
+        List<SkinnedMeshRenderer> meshRenderers = new List<SkinnedMeshRenderer>() {
+                Body, Hat, Accessories, Pants, Hairstyle, Outerwear, Shoes,
+            };
+
+        foreach (var meshRenderer in meshRenderers) {
+            var mats = meshRenderer.materials.ToList();
+            mats.RemoveAt(1);
+            meshRenderer.materials = mats.ToArray();
+        }
+    }
+
+    /// <summary>
     /// キャラクタータイプに合わせてモデルのTransform変更
     /// </summary>
     public void ChangeCharacterModel() {
@@ -216,7 +234,8 @@ public class PlayerManager : MonoBehaviour {
                 gameManager.Dead(lastHitPlayerConnectionId, deathCause);
             }
             else {
-                this.transform.position = Vector3.zero;
+                int rndIndex = UnityEngine.Random.Range(0, gameManager.spownPoint.Count());
+                this.transform.position = gameManager.spownPoint[rndIndex].position;
                 myRb.linearVelocity = Vector3.zero;
             }
         }

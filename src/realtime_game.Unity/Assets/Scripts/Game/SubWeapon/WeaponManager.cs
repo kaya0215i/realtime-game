@@ -5,6 +5,7 @@ public class WeaponManager : MonoBehaviour {
     protected PlayerManager playerManager;
     protected NetworkObject networkObject;
     protected Rigidbody myRb;
+    protected AudioSource myAudioSource;
 
     // VFX
     [SerializeField] protected GameObject fieldHitVFX;

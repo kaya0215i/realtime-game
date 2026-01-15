@@ -9,6 +9,10 @@ public class ImpactBombController : WeaponManager {
     private void Start() {
         networkObject = this.GetComponent<NetworkObject>();
         myRb = this.GetComponent<Rigidbody>();
+        myAudioSource = this.GetComponent<AudioSource>();
+
+        // AudioSourceê›íË
+        AudioManager.Instance.SetAudioSouceVolume(myAudioSource);
 
         networkObject.sendDestroyMessage = false;
 

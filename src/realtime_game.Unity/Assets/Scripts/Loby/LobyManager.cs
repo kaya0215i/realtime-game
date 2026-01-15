@@ -4,14 +4,9 @@ using realtime_game.Shared.Models.Entities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 using TMPro;
-using Unity.VisualScripting;
-using UnityEditor.MemoryProfiler;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.TextCore.Text;
-using UnityEngine.UI;
 using static CharacterSettings;
 
 public class LobyManager : MonoBehaviour {
@@ -100,8 +95,12 @@ public class LobyManager : MonoBehaviour {
             }
             else {
                 SceneManager.LoadScene("TitleScene");
+                return;
             }
         }
+
+        // âπó í≤êÆ
+        AudioManager.Instance.SetAllAudioSouceVolume();
     }
 
     private void Update() {

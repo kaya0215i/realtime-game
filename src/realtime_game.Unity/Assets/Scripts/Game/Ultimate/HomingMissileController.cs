@@ -14,6 +14,10 @@ public class HomingMissileController : WeaponManager {
     private void Start() {
         networkObject = this.GetComponent<NetworkObject>();
         myRb = this.GetComponent<Rigidbody>();
+        myAudioSource = this.GetComponent<AudioSource>();
+
+        // AudioSourceÝ’è
+        AudioManager.Instance.SetAudioSouceVolume(myAudioSource);
 
         UltimateData ultimateData = CharacterSettings.Instance.UDSO.ultimateDataList.First(_ => _.Ultimate == PLAYER_ULTIMATE.HomingMissile);
         MaxLife = ultimateData.Life;

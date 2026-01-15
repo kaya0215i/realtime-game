@@ -1,4 +1,5 @@
 using Cysharp.Threading.Tasks;
+using Cysharp.Threading.Tasks.Triggers;
 using DG.Tweening;
 using realtime_game.Shared.Interfaces.StreamingHubs;
 using realtime_game.Shared.Models.Entities;
@@ -7,9 +8,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using Unity.Cinemachine;
-using Unity.VisualScripting;
-using UnityEditor.MemoryProfiler;
 using UnityEngine;
+using UnityEngine.Audio;
 using UnityEngine.SceneManagement;
 using static CharacterSettings;
 using static NetworkObject;
@@ -46,8 +46,8 @@ public class GameManager : MonoBehaviour {
     // サーバー通信用CancellationTokenSource
     private CancellationTokenSource serverAsyncCTS = new CancellationTokenSource();
 
-    // プレイヤー待機時のスポーンポイント
-    private Vector3 firstSpownPoint = Vector3.zero;
+    // スポーンポイントリスト
+    public List<Transform> spownPoint;
 
     // 自分を殺したプレイヤーのCinemachineCamera
     private CinemachineCamera killedPlyaerCamera;
@@ -135,6 +135,9 @@ public class GameManager : MonoBehaviour {
 
         // ルームに参加
         JoinRoom();
+
+        // 音量調整
+        AudioManager.Instance.SetAllAudioSouceVolume();
     }
 
     private void OnDisable() {
@@ -452,6 +455,11 @@ public class GameManager : MonoBehaviour {
         Debug.Log("ゲームスタート");
         IsGameStartShared = true;
         gameUIManager.HideWaitPlayerUI();
+
+        // スポーンポイントに移動
+        int rndIndex = UnityEngine.Random.Range(0, spownPoint.Count());
+        MyCharacter.transform.position = spownPoint[rndIndex].position;
+        playerManager.myRb.linearVelocity = Vector3.zero;
     }
 
     /// <summary>
@@ -609,9 +617,11 @@ public class GameManager : MonoBehaviour {
     public void CreateMyPlayerCharacter(bool isRespown) {
         // 自分のキャラクターを作成
         MyCharacter = Instantiate(characterPrefab, parent: playerObjectParent); // プレイヤーインスタンス生成
-        MyCharacter.transform.position = firstSpownPoint;
+        int rndIndex = UnityEngine.Random.Range(0, spownPoint.Count());
+        MyCharacter.transform.position = spownPoint[rndIndex].position;
         playerManager = MyCharacter.GetComponent<PlayerManager>();
         playerController = MyCharacter.GetComponent<PlayerController>();
+        AudioSource audioSource = MyCharacter.GetComponent<AudioSource>();
         playerController.cinemachineCamera.Priority = 10;
 
         // タイプと武器を設定
@@ -626,6 +636,12 @@ public class GameManager : MonoBehaviour {
         playerManager.Hairstyle.sharedMesh = CharacterSettings.Instance.Hairstyle;
         playerManager.Outerwear.sharedMesh = CharacterSettings.Instance.Outerwear;
         playerManager.Shoes.sharedMesh = CharacterSettings.Instance.Shoes;
+
+        // アウトラインを消す
+        playerManager.DeleteOutLine();
+
+        // AudioSource設定
+        AudioManager.Instance.SetAudioSouceVolume(audioSource);
 
         if (isRespown) {
             playerManager.thisCharacterConnectionId = mySelf.ConnectionId;
@@ -642,10 +658,13 @@ public class GameManager : MonoBehaviour {
     public void CreateOtherPlayerCharacter(JoinedUser user, bool isRespown) {
         // キャラクターを作成
         GameObject characterObject = Instantiate(characterPrefab, parent: playerObjectParent); // インスタンス生成
-        characterObject.transform.position = firstSpownPoint;
+        int rndIndex = UnityEngine.Random.Range(0, spownPoint.Count());
+        characterObject.transform.position = spownPoint[rndIndex].position;
         characterObject.name = "Player_" + user.JoinOrder;
 
         PlayerManager createdPlayerManager = characterObject.GetComponent<PlayerManager>();
+        AudioSource audioSource = MyCharacter.GetComponent<AudioSource>();
+
         // コネクションID適応
         createdPlayerManager.thisCharacterConnectionId = user.ConnectionId;
 
@@ -664,6 +683,9 @@ public class GameManager : MonoBehaviour {
         createdPlayerManager.Hairstyle.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Hairstyle").equipment.Find(_ => _.name == user.LoadoutData.HairstyleName).mesh;
         createdPlayerManager.Outerwear.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Outerwear").equipment.Find(_ => _.name == user.LoadoutData.OuterwearName).mesh;
         createdPlayerManager.Shoes.sharedMesh = CESO.characterEquipment.Find(_ => _.name == "Shoes").equipment.Find(_ => _.name == user.LoadoutData.ShoesName).mesh;
+
+        // AudioSource設定
+        AudioManager.Instance.SetAudioSouceVolume(audioSource);
 
         // フィールドで保持
         if (isRespown) {

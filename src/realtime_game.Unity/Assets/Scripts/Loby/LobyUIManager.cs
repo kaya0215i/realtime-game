@@ -1,13 +1,12 @@
 using Cysharp.Threading.Tasks;
 using DG.Tweening;
-using realtime_game.Shared.Interfaces.StreamingHubs;
 using realtime_game.Shared.Models.Entities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using TMPro;
-using UnityEditor.Experimental.GraphView;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.UI;
@@ -41,11 +40,19 @@ public class LobyUIManager : MonoBehaviour {
     [SerializeField] private Transform friendRequestListScrollViewContent;
     private Dictionary<int, FriendList> friendList = new Dictionary<int, FriendList>();
 
+    // 設定用
+    [SerializeField] private GameObject settingUI;
+    [SerializeField] private GameObject settingPanel;
+    [SerializeField] private Slider sensSlider;
+    [SerializeField] private InputField sensInputField;
+    [SerializeField] private Slider audioValumeSlider;
+    [SerializeField] private InputField audioValumeInputField;
+
     // ロードアウト用
     [SerializeField] private GameObject loadoutUI;
     [SerializeField] private GameObject itemSelects;
     [SerializeField] private GameObject selecter;
-    [SerializeField] private Image SelectiongImage;
+    [SerializeField] private Image selectiongImage;
     [SerializeField] private GameObject itemSelectPrefab;
     [SerializeField] private Transform itemSelectParent;
     [SerializeField] private SerializableDictionary<string, Image> weaponSelectImages;
@@ -93,6 +100,13 @@ public class LobyUIManager : MonoBehaviour {
         foreach (var item in skinPartSelectImages) {
             item.Value.sprite = CharacterSettings.Instance.GetCharacterEquipmentSprite(item.Key);
         }
+
+        // 感度設定
+        sensInputField.text = CharacterSettings.Instance.RawSens.ToString();
+        OnChangedSensInputField();
+        // 音量設定
+        audioValumeInputField.text = AudioManager.Instance.AudioVolume.ToString();
+        OnChangedAudioVolumeInputField();
     }
 
     private async void Update() {
@@ -281,18 +295,23 @@ public class LobyUIManager : MonoBehaviour {
     /// ハンバーガーメニューボタン
     /// </summary>
     public void OnClickHamBergerMenuBtn() {
-        if (friendUI.activeSelf) {
-            friendUI.SetActive(false);
-
-            friendListPanel.SetActive(false);
-            findUserPanel.SetActive(false);
-        }
-        else {
+        if (!friendUI.activeSelf &&
+            !settingUI.activeSelf) {
             friendUIHeaderText.text = "フレンドリスト";
             friendUI.SetActive(true);
 
             friendListPanel.SetActive(true);
             findUserPanel.SetActive(false);
+
+            settingUI.SetActive(true);
+        }
+        else {
+            friendUI.SetActive(false);
+
+            friendListPanel.SetActive(false);
+            findUserPanel.SetActive(false);
+
+            settingUI.SetActive(false);
         }
     }
 
@@ -517,6 +536,91 @@ public class LobyUIManager : MonoBehaviour {
     }
 
     /// <summary>
+    /// 設定ボタンを押したら
+    /// </summary>
+    public void OnClickSettingBtn() {
+        if (settingPanel.activeSelf) {
+            settingPanel.SetActive(false);
+        }
+        else {
+            settingPanel.SetActive(true);
+        }
+    }
+
+    /// <summary>
+    /// 感度変更スライダー
+    /// </summary>
+    public void OnChangedSensSlider() {
+        float sens = sensSlider.value;
+        if (sens < 0.01f) {
+            sens = 0.01f;
+            sensSlider.value = sens;
+        } 
+
+        sensInputField.text = sens.ToString();
+
+        CharacterSettings.Instance.ChangeSens(sens);
+    }
+
+    /// <summary>
+    /// 感度変更InputField
+    /// </summary>
+    public void OnChangedSensInputField() {
+        float sens;
+        bool parseResult = float.TryParse(sensInputField.text, out sens);
+        if (parseResult) {
+            if (sens < 0.01f) {
+                sens = 0.01f;
+                sensSlider.value = sens;
+            }
+            else if (sens > 1) {
+                sens = 1;
+            }
+
+            sensSlider.value = sens;
+            sensInputField.text = sens.ToString();
+            CharacterSettings.Instance.ChangeSens(sens);
+        }
+        else {
+            OnChangedSensSlider();
+        }
+    }
+
+    /// <summary>
+    /// 音量変更スライダー
+    /// </summary>
+    public void OnChangedAudioVolumeSlider() {
+        float volume = audioValumeSlider.value;
+
+        audioValumeInputField.text = volume.ToString();
+        AudioManager.Instance.ChangeAllAudioSourceVolume(volume);
+    }
+
+    /// <summary>
+    /// 音量変更InputField
+    /// </summary>
+    public void OnChangedAudioVolumeInputField() {
+        float volume;
+        bool parseResult = float.TryParse(audioValumeInputField.text, out volume);
+        if (parseResult) {
+            if (volume < 0) {
+                volume = 0;
+            }
+            else if (volume > 1) {
+                volume = 1;
+            }
+
+            audioValumeSlider.value = volume;
+            audioValumeInputField.text = volume.ToString();
+            AudioManager.Instance.ChangeAllAudioSourceVolume(volume);
+        }
+        else {
+            OnChangedAudioVolumeSlider();
+        }
+    }
+
+
+    /// <summary>
     /// ロードアウトアイテムセレクトボタン共有
     /// </summary>
     public void OnClickItemSelectBtn(string select) {
@@ -540,7 +644,7 @@ public class LobyUIManager : MonoBehaviour {
         switch (select) {
             case "MainWeapon":
                 // 選択中のアイテム画像設定
-                SelectiongImage.sprite = CharacterSettings.Instance.GetCharacterCharacterTypeSprite();
+                selectiongImage.sprite = CharacterSettings.Instance.GetCharacterCharacterTypeSprite();
 
                 foreach (var item in BDSO.bulletDataList) {
                     GameObject createdUI = Instantiate(itemSelectPrefab, parent: itemSelectParent);
@@ -551,7 +655,7 @@ public class LobyUIManager : MonoBehaviour {
                         // 武器変更
                         CharacterSettings.Instance.CharacterType = item.CharacterType;
                         // 選択中のアイテム画像設定
-                        SelectiongImage.sprite = CharacterSettings.Instance.GetCharacterCharacterTypeSprite();
+                        selectiongImage.sprite = CharacterSettings.Instance.GetCharacterCharacterTypeSprite();
                         // 武器選択ボタンの画像設定
                         weaponSelectImages.First(_ => _.Key == select).Value.sprite = item.LoadoutSprite;
                     });
@@ -561,7 +665,7 @@ public class LobyUIManager : MonoBehaviour {
 
             case "SubWeapon":
                 // 選択中のアイテム画像設定
-                SelectiongImage.sprite = CharacterSettings.Instance.GetCharacterSubWeaponSprite();
+                selectiongImage.sprite = CharacterSettings.Instance.GetCharacterSubWeaponSprite();
 
                 foreach (var item in SWDSO.subWeaponDataList) {
                     GameObject createdUI = Instantiate(itemSelectPrefab, parent: itemSelectParent);
@@ -572,7 +676,7 @@ public class LobyUIManager : MonoBehaviour {
                         // 武器変更
                         CharacterSettings.Instance.SubWeapon = item.SubWeapon;
                         // 選択中のアイテム画像設定
-                        SelectiongImage.sprite = CharacterSettings.Instance.GetCharacterSubWeaponSprite();
+                        selectiongImage.sprite = CharacterSettings.Instance.GetCharacterSubWeaponSprite();
                         // 武器選択ボタンの画像設定
                         weaponSelectImages.First(_ => _.Key == select).Value.sprite = item.LoadoutSprite;
                     });
@@ -582,7 +686,7 @@ public class LobyUIManager : MonoBehaviour {
 
             case "Ultimate":
                 // 選択中のアイテム画像設定
-                SelectiongImage.sprite = CharacterSettings.Instance.GetCharacterUltimateSprite();
+                selectiongImage.sprite = CharacterSettings.Instance.GetCharacterUltimateSprite();
 
                 foreach (var item in UDSO.ultimateDataList) {
                     GameObject createdUI = Instantiate(itemSelectPrefab, parent: itemSelectParent);
@@ -593,7 +697,7 @@ public class LobyUIManager : MonoBehaviour {
                         // 武器変更
                         CharacterSettings.Instance.Ultimate = item.Ultimate;
                         // 選択中のアイテム画像設定
-                        SelectiongImage.sprite = CharacterSettings.Instance.GetCharacterUltimateSprite();
+                        selectiongImage.sprite = CharacterSettings.Instance.GetCharacterUltimateSprite();
                         // 武器選択ボタンの画像設定
                         weaponSelectImages.First(_ => _.Key == select).Value.sprite = item.LoadoutSprite;
                     });
@@ -608,7 +712,7 @@ public class LobyUIManager : MonoBehaviour {
             case "Outerwear":
             case "Shoes":
                 // 選択中のアイテム画像設定
-                SelectiongImage.sprite = CharacterSettings.Instance.GetCharacterEquipmentSprite(select);
+                selectiongImage.sprite = CharacterSettings.Instance.GetCharacterEquipmentSprite(select);
 
                 foreach (var item in CESO.characterEquipment.First(_ => _.name == select).equipment.ToList()) {
                     GameObject createdUI = Instantiate(itemSelectPrefab, parent: itemSelectParent);
@@ -622,7 +726,7 @@ public class LobyUIManager : MonoBehaviour {
                         // 装備変更
                         CharacterSettings.Instance.ChangeCharacterEquipment(part, item.name);
                         // 選択中のアイテム画像設定
-                        SelectiongImage.sprite = CharacterSettings.Instance.GetCharacterEquipmentSprite(part.ToString());
+                        selectiongImage.sprite = CharacterSettings.Instance.GetCharacterEquipmentSprite(part.ToString());
                         // 部位選択ボタンの画像設定
                         skinPartSelectImages.First(_ => _.Key == select).Value.sprite = item.sprite;
                     });
